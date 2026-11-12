@@ -1,0 +1,51 @@
+name: Build NusantaraCity IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Three.js Offline Engine
+        run: |
+          mkdir -p www/js
+          curl -L https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js -o www/js/three.min.js
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode Project
+        run: |
+          cd ios
+          xcodegen generate
+
+      - name: Build Unsigned iOS App
+        run: |
+          xcodebuild -project ios/NusantaraCity.xcodeproj \
+            -scheme NusantaraCity \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Package into IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/NusantaraCity.app Payload/
+          zip -qr NusantaraCity.ipa Payload
+
+      - name: Upload NusantaraCity.ipa Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NusantaraCity-IPA
+          path: NusantaraCity.ipa
