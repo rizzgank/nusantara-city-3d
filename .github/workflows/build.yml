@@ -13,9 +13,21 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Organize & Verify Web Assets
+        run: |
+          mkdir -p www/css www/js
+          find . -maxdepth 5 -name "style.css" ! -path "./www/css/style.css" -exec cp {} www/css/style.css \;
+          find . -maxdepth 5 -name "maps_weather.js" ! -path "./www/js/maps_weather.js" -exec cp {} www/js/maps_weather.js \;
+          find . -maxdepth 5 -name "graphics_hd.js" ! -path "./www/js/graphics_hd.js" -exec cp {} www/js/graphics_hd.js \;
+          find . -maxdepth 5 -name "city_rci.js" ! -path "./www/js/city_rci.js" -exec cp {} www/js/city_rci.js \;
+          find . -maxdepth 5 -name "main.js" ! -path "./www/js/main.js" -exec cp {} www/js/main.js \;
+          test -f www/js/maps_weather.js
+          test -f www/js/graphics_hd.js
+          test -f www/js/city_rci.js
+          test -f www/js/main.js
+
       - name: Download Three.js Offline Engine
         run: |
-          mkdir -p www/js
           curl -L https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js -o www/js/three.min.js
 
       - name: Install XcodeGen
