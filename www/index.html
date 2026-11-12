@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Nusantara: City & Policy</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- Layar Awal: Pilihan Peta Se-Indonesia & Mode Permainan -->
+  <div id="launcher-screen" class="overlay-screen">
+    <div class="launcher-card">
+      <div class="launcher-header">
+        <div>
+          <span class="badge-tag">SIMULASI TATA KOTA & PEMERINTAHAN 3D</span>
+          <h1>NUSANTARA: CITY &amp; POLICY</h1>
+          <p>Pilih wilayah geografis di Indonesia sebagai kanvas alam, lalu tentukan sendiri masa depan kotamu.</p>
+        </div>
+        <div class="mode-selector">
+          <span class="section-label">MODE PEMERINTAHAN</span>
+          <div class="mode-buttons" id="mode-buttons">
+            <button class="mode-btn active" data-mode="sandbox">Sandbox (∞)</button>
+            <button class="mode-btn" data-mode="easy">Real: Easy (Rp 500M)</button>
+            <button class="mode-btn" data-mode="medium">Real: Medium (Rp 150M)</button>
+            <button class="mode-btn" data-mode="hard">Real: Hard (Rp 50M)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="region-grid" id="region-grid"></div>
+
+      <div class="launcher-footer">
+        <div class="selected-summary" id="selected-summary">
+          Terpilih: <strong>Kota Malang</strong> • Dataran Tinggi Cekungan (18°C)
+        </div>
+        <button id="btn-start-city" class="primary-cta">Mulai Menjabat Kepala Daerah ➤</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Kanvas Utama 3D HD -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- HUD Lanskap -->
+  <div id="hud-layer" class="hidden">
+    <!-- Bar Atas Tipis -->
+    <header id="top-hud">
+      <button id="btn-city-menu" class="hud-pill clickable" title="Ganti Kota / Peta Indonesia">
+        <span id="hud-city-name">📍 Kota Malang</span>
+        <span class="divider">•</span>
+        <span id="hud-weather">18°C Kabut Pagi</span>
+        <span class="divider">•</span>
+        <span id="hud-happiness">😊 82%</span>
+      </button>
+
+      <div class="hud-pill rci-pill" title="Permintaan Zona: Hijau (Hunian), Biru (Komersial), Kuning (Industri)">
+        <div class="rci-item">
+          <span>R</span>
+          <div class="rci-track"><div id="bar-r" class="rci-fill r-color" style="height: 65%"></div></div>
+        </div>
+        <div class="rci-item">
+          <span>C</span>
+          <div class="rci-track"><div id="bar-c" class="rci-fill c-color" style="height: 45%"></div></div>
+        </div>
+        <div class="rci-item">
+          <span>I</span>
+          <div class="rci-track"><div id="bar-i" class="rci-fill i-color" style="height: 55%"></div></div>
+        </div>
+      </div>
+
+      <div class="hud-pill right-stats">
+        <span id="hud-budget">💰 ∞ Sandbox</span>
+        <span class="divider">•</span>
+        <span id="hud-pop">👥 0</span>
+        <span class="divider">•</span>
+        <div class="time-controls">
+          <button class="speed-btn" data-speed="0">⏸️</button>
+          <button class="speed-btn active" data-speed="1">▶️</button>
+          <button class="speed-btn" data-speed="3">⏩</button>
+          <span id="hud-clock">07:00</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Tombol Bantuan & Notifikasi Minimalis di Kanan -->
+    <aside id="right-actions">
+      <button id="btn-open-chat" class="side-pill chat-trigger">💬 Bantuan</button>
+      <button id="btn-permits" class="side-pill subtle">📩 Izin (<span id="permit-count">0</span>)</button>
+      <div id="advisor-status" class="side-pill advisor-ok">🛡️ Staf Ahli Aman</div>
+    </aside>
+
+    <!-- Layar Putih Chat Bantuan AI -->
+    <section id="ai-chat-drawer" class="chat-drawer closed">
+      <div class="chat-header">
+        <div>
+          <strong>🤖 Asisten Staf Ahli AI</strong>
+          <small id="chat-subtitle">Memantau kondisi kota secara real-time</small>
+        </div>
+        <button id="btn-close-chat" class="chat-close">✕</button>
+      </div>
+
+      <div id="chat-messages" class="chat-messages"></div>
+
+      <div class="chat-chips" id="chat-chips">
+        <button class="chip-btn" data-q="Cek progress kotaku sekarang">Cek progress kotaku sekarang</button>
+        <button class="chip-btn" data-q="Abis ini aku harus gimana?">Abis ini harus gimana?</button>
+        <button class="chip-btn" data-q="Cara pahat gunung dan sungai?">Cara pahat gunung &amp; sungai?</button>
+      </div>
+
+      <form id="chat-form" class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Tanya kondisi kota atau saran tata ruang..." autocomplete="off" />
+        <button type="submit">➤</button>
+      </form>
+    </section>
+
+    <!-- Toast Umpan Balik -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Bottom Dock: Sub-Menu Geser + 5 Tombol Induk -->
+    <footer id="bottom-dock-wrap">
+      <div id="sub-menu" class="sub-menu hidden"></div>
+
+      <nav id="main-dock">
+        <button class="dock-btn" data-menu="tata_kota">🛣️ Tata Kota</button>
+        <button class="dock-btn" data-menu="layanan">🏛️ Layanan</button>
+        <button class="dock-btn" data-menu="perda">📜 Perda</button>
+        <button class="dock-btn" data-menu="gebrakan">🚀 Gebrakan</button>
+        <button class="dock-btn danger" data-menu="buldoser">🪓 Buldoser</button>
+      </nav>
+    </footer>
+  </div>
+
+  <!-- Memuat Three.js Lokal (atau Fallback CDN jika belum di-bundle) -->
+  <script src="js/three.min.js" onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';document.head.appendChild(s);"></script>
+  <script src="js/maps_weather.js"></script>
+  <script src="js/graphics_hd.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
