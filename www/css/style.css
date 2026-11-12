@@ -45,7 +45,7 @@ html, body {
   width: 100%;
   max-width: 960px;
   max-height: 100%;
-  background: rgba(15, 23, 42, 0.88);
+  background: rgba(15, 23, 42, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 18px;
   padding: 16px 20px;
@@ -217,7 +217,7 @@ html, body {
 
 .hud-pill {
   pointer-events: auto;
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(15, 23, 42, 0.82);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 99px;
@@ -299,7 +299,7 @@ html, body {
   top: calc(max(8px, env(safe-area-inset-top)) + 44px);
   left: max(12px, env(safe-area-inset-left));
   z-index: 20;
-  background: rgba(2, 132, 199, 0.9);
+  background: rgba(2, 132, 199, 0.92);
   border: 1px solid #7dd3fc;
   color: #ffffff;
   font-size: 11px;
@@ -322,7 +322,7 @@ html, body {
 }
 
 .side-pill {
-  background: rgba(15, 23, 42, 0.82);
+  background: rgba(15, 23, 42, 0.84);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(148, 163, 184, 0.28);
   color: #f8fafc;
@@ -344,6 +344,61 @@ html, body {
   font-size: 10.5px;
   color: #86efac;
   cursor: default;
+}
+
+/* Precision Blueprint Confirmation Bar */
+.blueprint-bar {
+  position: fixed;
+  top: calc(max(8px, env(safe-area-inset-top)) + 44px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(12px);
+  border: 1.5px solid #38bdf8;
+  border-radius: 14px;
+  padding: 7px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+}
+
+#blueprint-info {
+  font-size: 12px;
+  font-weight: 700;
+  color: #e0f2fe;
+  white-space: nowrap;
+}
+
+.bp-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.bp-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 11px;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.bp-btn.confirm {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.bp-btn.rotate {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.bp-btn.cancel {
+  background: #dc2626;
+  color: #ffffff;
 }
 
 /* Layar Putih Chat Bantuan AI */
@@ -536,7 +591,7 @@ html, body {
 #main-dock {
   display: flex;
   gap: 8px;
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(15, 23, 42, 0.88);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(148, 163, 184, 0.28);
   padding: 6px 10px;
@@ -570,11 +625,11 @@ html, body {
 /* Toast Notification */
 .toast {
   position: fixed;
-  top: calc(max(8px, env(safe-area-inset-top)) + 46px);
+  bottom: 108px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 35;
-  background: rgba(15, 23, 42, 0.92);
+  background: rgba(15, 23, 42, 0.94);
   border: 1px solid rgba(56, 189, 248, 0.45);
   color: #f8fafc;
   padding: 7px 14px;
@@ -582,4 +637,5 @@ html, body {
   font-size: 11.5px;
   font-weight: 600;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
 }
