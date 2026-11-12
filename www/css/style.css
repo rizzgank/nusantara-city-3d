@@ -217,7 +217,7 @@ html, body {
 
 .hud-pill {
   pointer-events: auto;
-  background: rgba(15, 23, 42, 0.78);
+  background: rgba(15, 23, 42, 0.8);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 99px;
@@ -291,6 +291,22 @@ html, body {
   background: rgba(56, 189, 248, 0.25);
   border-color: #38bdf8;
   color: #ffffff;
+}
+
+/* Smart Data Lens Banner */
+.lens-banner {
+  position: fixed;
+  top: calc(max(8px, env(safe-area-inset-top)) + 44px);
+  left: max(12px, env(safe-area-inset-left));
+  z-index: 20;
+  background: rgba(2, 132, 199, 0.9);
+  border: 1px solid #7dd3fc;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 99px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
 /* Right Floating Stack */
@@ -491,7 +507,7 @@ html, body {
   gap: 6px;
   overflow-x: auto;
   max-width: 92vw;
-  background: rgba(15, 23, 42, 0.88);
+  background: rgba(15, 23, 42, 0.9);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(56, 189, 248, 0.35);
   padding: 6px 10px;
