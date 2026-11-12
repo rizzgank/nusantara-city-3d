@@ -12,9 +12,9 @@
     <div class="launcher-card">
       <div class="launcher-header">
         <div>
-          <span class="badge-tag">SIMULASI TATA KOTA & PEMERINTAHAN 3D</span>
+          <span class="badge-tag">SIMULASI TATA KOTA & PEMERINTAHAN 3D HD</span>
           <h1>NUSANTARA: CITY &amp; POLICY</h1>
-          <p>Pilih wilayah geografis di Indonesia sebagai kanvas alam, lalu tentukan sendiri masa depan kotamu.</p>
+          <p>Peta skala kabupaten 6.400 kavling dengan topografi nyata Indonesia &amp; tata ruang presisi.</p>
         </div>
         <div class="mode-selector">
           <span class="section-label">MODE PEMERINTAHAN</span>
@@ -31,7 +31,7 @@
 
       <div class="launcher-footer">
         <div class="selected-summary" id="selected-summary">
-          Terpilih: <strong>Kota Malang</strong> • Dataran Tinggi Cekungan (18°C)
+          Terpilih: <strong>Kota Malang (Malang Raya)</strong> • Dataran Tinggi Cekungan (18°C)
         </div>
         <button id="btn-start-city" class="primary-cta">Mulai Menjabat Kepala Daerah ➤</button>
       </div>
@@ -85,9 +85,10 @@
     <!-- Banner Smart Data Lens (Muncul Otomatis saat alat PLN / PDAM dipilih) -->
     <div id="lens-banner" class="lens-banner hidden"></div>
 
-    <!-- Tombol Bantuan & Notifikasi Minimalis di Kanan -->
+    <!-- Tombol Bantuan, Sudut Kamera & Notifikasi Minimalis di Kanan -->
     <aside id="right-actions">
       <button id="btn-open-chat" class="side-pill chat-trigger">💬 Bantuan</button>
+      <button id="btn-cam-view" class="side-pill">📐 Sudut: 3D</button>
       <button id="btn-permits" class="side-pill subtle">📩 Izin (<span id="permit-count">0</span>)</button>
       <div id="advisor-status" class="side-pill advisor-ok">🛡️ Staf Ahli Aman</div>
     </aside>
@@ -106,8 +107,8 @@
 
       <div class="chat-chips" id="chat-chips">
         <button class="chip-btn" data-q="Cek progress kotaku sekarang">Cek progress kotaku sekarang</button>
-        <button class="chip-btn" data-q="Abis ini aku harus gimana?">Abis ini harus gimana?</button>
-        <button class="chip-btn" data-q="Kenapa rumahku belum tumbuh?">Kenapa rumah belum tumbuh?</button>
+        <button class="chip-btn" data-q="Cara naruh jalan dan zona presisi?">Cara tarik jalan presisi?</button>
+        <button class="chip-btn" data-q="Kontrol kamera 2 jari gimana?">Kontrol kamera 2 jari?</button>
       </div>
 
       <form id="chat-form" class="chat-input-row">
@@ -118,6 +119,16 @@
 
     <!-- Toast Umpan Balik -->
     <div id="toast" class="toast hidden"></div>
+
+    <!-- Bar Konfirmasi Penempatan Presisi ala TheoTown -->
+    <div id="blueprint-bar" class="blueprint-bar hidden">
+      <span id="blueprint-info">Jalan Arteri (6 Petak) • Rp 2,10 M</span>
+      <div class="bp-actions">
+        <button id="btn-bp-rotate" class="bp-btn rotate hidden">🔄 Putar</button>
+        <button id="btn-bp-confirm" class="bp-btn confirm">✓ Bangun</button>
+        <button id="btn-bp-cancel" class="bp-btn cancel">✕ Batal</button>
+      </div>
+    </div>
 
     <!-- Bottom Dock: Sub-Menu Geser + 5 Tombol Induk -->
     <footer id="bottom-dock-wrap">
