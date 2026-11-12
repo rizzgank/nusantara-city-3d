@@ -14,26 +14,34 @@
   };
 
   let engine = null;
+  let citySim = null;
 
   const SUB_MENUS = {
     tata_kota: [
+      { id: "road_local", label: "🛣️ Jalan Lingkungan (Rp 0,15M)" },
+      { id: "road_arterial", label: "🛣️ Jalan Arteri 4 Lajur (Rp 0,35M)" },
+      { id: "zone_r", label: "🟩 Zona Hijau: Hunian" },
+      { id: "zone_c", label: "🟦 Zona Biru: Komersial" },
+      { id: "zone_i", label: "🟨 Zona Kuning: Industri" },
+      { id: "zone_clear", label: "🧹 Hapus Zona" },
       { id: "raise", label: "🏔️ Naikkan Gunung" },
       { id: "lower", label: "🌊 Gali Sungai" },
       { id: "flatten", label: "📐 Ratakan Tanah" },
-      { id: "tree", label: "🌲 Tanam Pinus" },
-      { id: "road_stage2", label: "🛣️ Jalan & Zona RCI (Tahap 2)" }
+      { id: "tree", label: "🌲 Tanam Pinus" }
     ],
     layanan: [
-      { id: "info_layanan", label: "🏛️ Balai Kota, PLN/PDAM, SD–Univ & RSUD (Siap di Tahap 2–3)" }
+      { id: "pln", label: "⚡ Pembangkit PLN (Rp 4,5M)" },
+      { id: "pdam", label: "💧 Instalasi Air PDAM (Rp 3,5M)" },
+      { id: "info_layanan", label: "🏫 SD–Univ, RSUD & Polsek (Tahap 3)" }
     ],
     perda: [
-      { id: "info_perda", label: "📜 APBD, Pajak Hiburan Malam & Perda Ritel (Siap di Tahap 3)" }
+      { id: "info_perda", label: "📜 Pajak Hiburan Malam & Perda Ritel (Tahap 3)" }
     ],
     gebrakan: [
-      { id: "info_gebrakan", label: "🚀 Kuas Distrik, Voting Warga & AI Auto-Blueprint (Siap di Tahap 4)" }
+      { id: "info_gebrakan", label: "🚀 Kuas Distrik, Voting & AI Blueprint (Tahap 4)" }
     ],
     buldoser: [
-      { id: "bulldoze", label: "🪓 Aktifkan Buldoser (Usap Tanah untuk Hapus Pohon/Objek)" }
+      { id: "bulldoze", label: "🪓 Aktifkan Buldoser (Usap untuk Hapus Objek)" }
     ]
   };
 
@@ -42,7 +50,35 @@
     el.textContent = msg;
     el.classList.remove("hidden");
     clearTimeout(showToast._timer);
-    showToast._timer = setTimeout(() => el.classList.add("hidden"), 2600);
+    showToast._timer = setTimeout(() => el.classList.add("hidden"), 2700);
+  }
+
+  function spendBudget(amount) {
+    if (state.money === Infinity) return true;
+    if (state.money < amount) {
+      showToast(`APBD tidak cukup! Butuh Rp ${amount.toFixed(2)} M.`);
+      return false;
+    }
+    state.money -= amount;
+    return true;
+  }
+
+  function updateLensBanner(toolId) {
+    const banner = document.getElementById("lens-banner");
+    if (!citySim) return;
+
+    if (toolId === "pln") {
+      citySim.setSmartLens("pln");
+      banner.textContent = "⚡ Lensa Listrik PLN: Biru = Teraliri Listrik • Merah = Butuh Gardu/Pembangkit PLN";
+      banner.classList.remove("hidden");
+    } else if (toolId === "pdam") {
+      citySim.setSmartLens("pdam");
+      banner.textContent = "💧 Lensa Air PDAM: Biru = Teraliri Air Bersih • Merah = Butuh Instalasi PDAM";
+      banner.classList.remove("hidden");
+    } else {
+      citySim.setSmartLens(null);
+      banner.classList.add("hidden");
+    }
   }
 
   function initLauncher() {
@@ -80,6 +116,8 @@
     document.getElementById("btn-start-city").addEventListener("click", () => {
       const modeCfg = window.GAME_MODES[state.modeKey];
       state.money = modeCfg.startMoney;
+      state.population = 0;
+      state.happiness = 82;
       state.hour = 7.25;
       state.terrainEdits = 0;
       state.treesPlanted = 0;
@@ -88,18 +126,30 @@
       document.getElementById("hud-layer").classList.remove("hidden");
 
       if (!engine) {
-        engine = new NusantaraGraphicsHD(document.getElementById("game-canvas"), (action) => {
-          if (action === "tree") state.treesPlanted++;
-          else state.terrainEdits++;
+        engine = new NusantaraGraphicsHD(document.getElementById("game-canvas"), (wx, wz, toolId) => {
+          if (toolId === "tree") {
+            state.treesPlanted++;
+            return;
+          }
+          if (toolId === "raise" || toolId === "lower" || toolId === "flatten") {
+            state.terrainEdits++;
+            return;
+          }
+          if (citySim) {
+            citySim.applyToolAt(wx, wz, toolId, spendBudget);
+          }
         });
+        citySim = new CityRCISystem(engine);
+        engine.onAtmosphereChange = (isNight) => citySim.updateNightLighting(isNight);
         startLoop();
       }
 
       engine.loadRegion(state.region);
+      citySim.resetCity();
       engine.updateAtmosphere(state.hour);
       updateHUD();
       resetChatWelcome();
-      showToast(`Selamat menjabat di ${state.region.name} (${modeCfg.label})!`);
+      showToast(`Selamat menjabat di ${state.region.name}! Tarik jalan dari Gerbang Tol lalu warnai Zona RCI.`);
     });
   }
 
@@ -108,9 +158,19 @@
     const isNight = state.hour < 5.5 || state.hour > 18.5;
     const liveTemp = isNight ? reg.baseTemp - 3 : reg.baseTemp + (state.hour > 11 && state.hour < 15 ? 2 : 0);
 
+    if (citySim) {
+      state.population = citySim.stats.rBuildings * 140;
+      const penalty = citySim.stats.unpoweredCount * 3 + citySim.stats.unwateredCount * 3;
+      state.happiness = Math.max(25, Math.min(96, 82 + Math.min(12, citySim.stats.cBuildings) - penalty));
+
+      document.getElementById("bar-r").style.height = `${citySim.demand.R}%`;
+      document.getElementById("bar-c").style.height = `${citySim.demand.C}%`;
+      document.getElementById("bar-i").style.height = `${citySim.demand.I}%`;
+    }
+
     document.getElementById("hud-city-name").textContent = `📍 ${reg.name}`;
     document.getElementById("hud-weather").textContent = `${liveTemp}°C ${isNight ? "Malam Sejuk" : reg.weatherLabel}`;
-    document.getElementById("hud-happiness").textContent = `😊 ${state.happiness}%`;
+    document.getElementById("hud-happiness").textContent = `${state.happiness >= 65 ? "😊" : "😠"} ${state.happiness}%`;
 
     const budgetText = state.money === Infinity ? "💰 ∞ Sandbox" : `💰 Rp ${state.money.toFixed(1)} M`;
     document.getElementById("hud-budget").textContent = budgetText;
@@ -132,6 +192,7 @@
           state.activeDockMenu = null;
           state.activeSubTool = null;
           if (engine) engine.activeTool = null;
+          updateLensBanner(null);
           dockBtns.forEach((b) => b.classList.remove("active"));
           subMenu.classList.add("hidden");
           return;
@@ -147,13 +208,14 @@
           sb.className = "sub-btn" + (state.activeSubTool === item.id ? " active" : "");
           sb.textContent = item.label;
           sb.addEventListener("click", () => {
-            if (item.id.startsWith("info_") || item.id === "road_stage2") {
-              showToast("Fitur ini akan diaktifkan penuh pada Tahap 2–4 berikutnya!");
+            if (item.id.startsWith("info_")) {
+              showToast("Fitur ini akan aktif di Tahap 3–4 berikutnya!");
               return;
             }
             if (state.activeSubTool === item.id) {
               state.activeSubTool = null;
               if (engine) engine.activeTool = null;
+              updateLensBanner(null);
               sb.classList.remove("active");
               showToast("Mode kamera bebas aktif (1 jari geser, 2 jari zoom/putar).");
             } else {
@@ -161,7 +223,8 @@
               sb.classList.add("active");
               state.activeSubTool = item.id;
               if (engine) engine.activeTool = item.id;
-              showToast(`Alat aktif: ${item.label}. Usap layar untuk membentuk medan!`);
+              updateLensBanner(item.id);
+              showToast(`Alat aktif: ${item.label}. Usap layar untuk membangun!`);
             }
           });
           subMenu.appendChild(sb);
@@ -189,7 +252,7 @@
     box.innerHTML = "";
     appendChatMsg(
       "ai",
-      `Halo Kepala Daerah! Selamat datang di <strong>${state.region.name}</strong> (${state.region.biomeLabel}, suhu dasar ${state.region.baseTemp}°C).<br><br>Saat ini kita berada di <strong>Tahap 1 (Pondasi Geografis & Grafik 3D HD)</strong>. Anda sudah bisa mengetes pahat gunung, menggali sungai, menanam hutan pinus, serta memantau siklus siang–malam. Ketik pertanyaan apa saja kapan pun!`
+      `Halo Kepala Daerah! Selamat datang di <strong>${state.region.name}</strong>.<br><br><strong>Tahap 2 sudah aktif:</strong><br>1. Buka <strong>🛣️ Tata Kota</strong> lalu tarik jalan dari ujung <em>Gerbang Tol</em>.<br>2. Warnai <strong>🟩 Zona Hijau</strong>, <strong>🟦 Zona Biru</strong>, dan <strong>🟨 Zona Kuning</strong> di pinggir jalan.<br>3. Bangun <strong>⚡ PLN</strong> dan <strong>💧 PDAM</strong> di menu <strong>🏛️ Layanan</strong> agar bangunan berevolusi menjadi gedung modern!`
     );
   }
 
@@ -205,21 +268,26 @@
   function generateSmartAIResponse(query) {
     const q = query.toLowerCase();
     const reg = state.region;
-    const modeLabel = window.GAME_MODES[state.modeKey].label;
+    const s = citySim ? citySim.stats : null;
 
-    if (q.includes("progress") || q.includes("cek") || q.includes("kondisi")) {
-      return `<strong>Laporan Pemindaian Real-Time (${reg.name}):</strong><br>• <strong>Mode:</strong> ${modeLabel}<br>• <strong>Cuaca & Suhu:</strong> ${reg.weatherLabel} (${reg.baseTemp}°C)<br>• <strong>Aktivitas Topografi:</strong> ${state.terrainEdits} kali pahat tanah & ${state.treesPlanted} pohon pinus baru ditanam.<br>• <strong>Status Infrastruktur:</strong> Gerbang Tol Arteri sudah berdiri di sisi selatan sebagai titik masuk utama kota.`;
+    if (q.includes("belum tumbuh") || q.includes("kenapa rumah")) {
+      return `<strong>Syarat Bangunan Tumbuh Otomatis:</strong><br>1. Zona (Hijau/Biru/Kuning) wajib menempel tepat di samping petak jalan.<br>2. Jalan tersebut harus <strong>tersambung ke Jalan Tol Awal (Gerbang Biru)</strong> di selatan agar truk material & warga pendatang bisa masuk.<br>3. Kecepatan waktu tidak dalam kondisi <em>Pause (⏸️)</em>.`;
     }
 
-    if (q.includes("gunung") || q.includes("sungai") || q.includes("pahat")) {
-      return `Untuk memahat gunung atau sungai:<br>1. Ketuk tombol <strong>🛣️ Tata Kota</strong> di bawah.<br>2. Pilih <strong>🏔️ Naikkan Gunung</strong>, <strong>🌊 Gali Sungai</strong>, atau <strong>📐 Ratakan Tanah</strong>.<br>3. Usap jari langsung di atas daratan 3D. Untuk memutar atau menggeser kamera lagi, ketuk ulang tombol alat yang aktif agar nonaktif.`;
+    if (s && (q.includes("progress") || q.includes("cek") || q.includes("abis ini") || q.includes("gimana"))) {
+      const tips = [];
+      if (s.roads === 0) tips.push("• Tarik jaringan jalan baru menyambung dari ujung jalan Gerbang Tol di selatan.");
+      if (s.rBuildings === 0) tips.push("• Warnai <strong>🟩 Zona Hijau</strong> di pinggir jalan agar warga pendatang mulai membangun rumah.");
+      if (s.rBuildings > 0 && s.cBuildings === 0) tips.push("• Warga sudah mulai tinggal! Warnai <strong>🟦 Zona Biru</strong> agar ruko & warung tumbuh.");
+      if (s.rBuildings > 0 && s.iBuildings === 0) tips.push("• Warnai <strong>🟨 Zona Kuning</strong> agak terpisah dari perumahan untuk membuka lapangan kerja.");
+      if (s.plnCount === 0 || s.unpoweredCount > 0) tips.push("• Bangun <strong>⚡ Pembangkit PLN</strong> di menu <em>Layanan</em> karena ada bangunan yang belum mendapat listrik.");
+      if (s.pdamCount === 0 || s.unwateredCount > 0) tips.push("• Bangun <strong>💧 Instalasi PDAM</strong> di menu <em>Layanan</em> agar bangunan bisa naik ke Level 2 & 3.");
+      if (tips.length === 0) tips.push("• Infrastruktur dasar sangat sehat! Perluas jalan arteri dan tambah zona RCI untuk memperbesar populasi & pemasukan pajak.");
+
+      return `<strong>Hasil Pemindaian Kota ${reg.name}:</strong><br>• <strong>Populasi:</strong> ${state.population.toLocaleString("id-ID")} jiwa (Kepuasan ${state.happiness}%)<br>• <strong>Jalan Dibangun:</strong> ${s.roads} petak | <strong>Utilitas:</strong> ${s.plnCount} PLN, ${s.pdamCount} PDAM<br>• <strong>Tingkat Bangunan (R/C/I):</strong> ${s.rBuildings} / ${s.cBuildings} / ${s.iBuildings}<br><br><strong>Rekomendasi Langkah Berikutnya:</strong><br>${tips.join("<br>")}`;
     }
 
-    if (q.includes("abis ini") || q.includes("selanjutnya") || q.includes("gimana")) {
-      return `<strong>Saran Staf Ahli:</strong><br>1. Bentuk dulu kontur pegunungan, lembah, dan aliran sungai di <strong>${reg.name}</strong> sesuai selera Anda menggunakan menu <em>Tata Kota</em>.<br>2. Pastikan area sekitar Gerbang Tol memiliki lahan datar yang cukup luas untuk jalan protokol.<br>3. Setelah puas dengan kontur alamnya, lanjutkan ke <strong>Tahap 2</strong> untuk mengaktifkan jaringan jalan raya, listrik PLN, air PDAM, dan zonasi RCI otomatis!`;
-    }
-
-    return `Saya mencatat pertanyaan Anda terkait <strong>${reg.name}</strong>. Saat ini gerbang tol masuk kota sudah siap dan kontur ${reg.biomeLabel} telah terbentuk. Gunakan kuas di menu <strong>🛣️ Tata Kota</strong> untuk menyesuaikan gunung atau sungai sebelum kita membangun jaringan jalan & zona RCI di tahap berikutnya.`;
+    return `Saya memantau <strong>${reg.name}</strong> secara langsung. Gunakan kuas di <strong>🛣️ Tata Kota</strong> untuk menyambung jalan dari Gerbang Tol dan mewarnai zona RCI, serta <strong>🏛️ Layanan</strong> untuk memasang PLN & PDAM. Ketuk chip <em>"Cek progress kotaku sekarang"</em> kapan pun untuk audit otomatis!`;
   }
 
   function initChat() {
@@ -253,6 +321,7 @@
   function startLoop() {
     let lastTime = performance.now();
     let hudTimer = 0;
+    let taxTimer = 0;
 
     function tick(now) {
       const delta = Math.min((now - lastTime) / 1000, 0.1);
@@ -261,6 +330,17 @@
       if (state.speed > 0) {
         state.hour = (state.hour + delta * 0.18 * state.speed) % 24;
         if (engine) engine.updateAtmosphere(state.hour);
+        if (citySim) citySim.stepSimulation(delta, state.speed);
+
+        // Siklus Pemasukan Pajak & Biaya Operasional Harian (Real Mode)
+        taxTimer += delta * state.speed;
+        if (taxTimer >= 8 && citySim && state.money !== Infinity) {
+          taxTimer = 0;
+          const s = citySim.stats;
+          const taxIncome = s.rBuildings * 0.25 + s.cBuildings * 0.45 + s.iBuildings * 0.55;
+          const upkeep = s.roads * 0.015 + s.plnCount * 0.35 + s.pdamCount * 0.28;
+          state.money = Math.max(0, state.money + taxIncome - upkeep);
+        }
       }
 
       hudTimer += delta;
@@ -276,9 +356,15 @@
     requestAnimationFrame(tick);
   }
 
-  window.addEventListener("DOMContentLoaded", () => {
+  function bootApp() {
     initLauncher();
     initDock();
     initChat();
-  });
+  }
+
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", bootApp);
+  } else {
+    bootApp();
+  }
 })();
