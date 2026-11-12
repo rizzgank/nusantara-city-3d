@@ -1,7 +1,7 @@
 class NusantaraGraphicsHD {
-  constructor(canvas, onTerrainEdit) {
+  constructor(canvas, onWorldAction) {
     this.canvas = canvas;
-    this.onTerrainEdit = onTerrainEdit;
+    this.onWorldAction = onWorldAction;
 
     this.gridSegments = 72;
     this.worldSize = 140;
@@ -22,16 +22,16 @@ class NusantaraGraphicsHD {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
 
-    // Kontrol Kamera Orbit & Pan
-    this.camTarget = new THREE.Vector3(0, 1.5, 0);
-    this.camRadius = 68;
+    this.camTarget = new THREE.Vector3(0, 1.5, 8);
+    this.camRadius = 64;
     this.camTheta = Math.PI * 0.25;
     this.camPhi = Math.PI * 0.31;
 
-    this.activeTool = null; // null | 'raise' | 'lower' | 'flatten' | 'tree' | 'road_preview' | 'bulldoze'
+    this.activeTool = null;
     this.trees = [];
     this.streetLights = [];
     this.clockHour = 7.25;
+    this.onAtmosphereChange = null;
 
     this._setupLights();
     this._setupWaterShader();
@@ -144,7 +144,6 @@ class NusantaraGraphicsHD {
   }
 
   _setupStarterHighway() {
-    // Jalan Arteri Awal & Gerbang Tol Masuk Kota sebagai patokan skala
     const group = new THREE.Group();
 
     const roadGeo = new THREE.BoxGeometry(5.2, 0.16, 26);
@@ -154,14 +153,12 @@ class NusantaraGraphicsHD {
     road.receiveShadow = true;
     group.add(road);
 
-    // Marka garis putih & kuning tajam
     const lineGeo = new THREE.BoxGeometry(0.18, 0.18, 25.5);
     const yellowMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
     const centerLine = new THREE.Mesh(lineGeo, yellowMat);
     centerLine.position.set(0, 1.56, 22);
     group.add(centerLine);
 
-    // Gerbang Tol Nusantara
     const gatePillarGeo = new THREE.BoxGeometry(0.6, 3.2, 0.6);
     const gateMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
     const leftPillar = new THREE.Mesh(gatePillarGeo, gateMat);
@@ -179,7 +176,6 @@ class NusantaraGraphicsHD {
 
     group.add(leftPillar, rightPillar, roof);
 
-    // Lampu Jalan PJU
     for (let z = 11; z <= 31; z += 6.5) {
       const pole = new THREE.Mesh(
         new THREE.CylinderGeometry(0.08, 0.1, 2.8, 6),
@@ -208,11 +204,10 @@ class NusantaraGraphicsHD {
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
-      // Pastikan area sekitar gerbang tol awal tetap rata (y ~ 1.5)
       const distGate = Math.hypot(x, z - 22);
       let h = window.generateRegionHeight(region, x, z, this.halfSize);
-      if (distGate < 14) {
-        const blend = Math.max(0, (distGate - 7) / 7);
+      if (distGate < 15) {
+        const blend = Math.max(0, (distGate - 8) / 7);
         h = 1.5 * (1 - blend) + h * blend;
       }
       pos.setY(i, h);
@@ -230,15 +225,15 @@ class NusantaraGraphicsHD {
     for (let i = 0; i < pos.count; i++) {
       const y = pos.getY(i);
       if (y < -0.3) {
-        c.setHex(0x1e3a5f); // Dasar sungai / laut dalam
+        c.setHex(0x1e3a5f);
       } else if (y < 0.45) {
-        c.setHex(0xd6c79c); // Pasir / tepian sungai
+        c.setHex(0xd6c79c);
       } else if (y < 4.5) {
-        c.setHex(0x4d7c0f); // Rumput hijau lembah subur
+        c.setHex(0x4d7c0f);
       } else if (y < 10.5) {
-        c.setHex(0x365314); // Lereng hutan pinus gelap
+        c.setHex(0x365314);
       } else {
-        c.setHex(0x64748b); // Puncak batu pegunungan
+        c.setHex(0x64748b);
       }
       col.setXYZ(i, c.r, c.g, c.b);
     }
@@ -255,13 +250,13 @@ class NusantaraGraphicsHD {
       const x = pos.getX(i);
       const y = pos.getY(i);
       const z = pos.getZ(i);
-      if (y > 2.3 && y < 11.5 && Math.hypot(x, z - 22) > 13 && Math.random() > 0.35) {
-        this.addTreeAt(x, y, z, true);
+      if (y > 2.3 && y < 11.5 && Math.hypot(x, z - 22) > 14 && Math.random() > 0.35) {
+        this.addTreeAt(x, y, z);
       }
     }
   }
 
-  addTreeAt(x, y, z, silent = false) {
+  addTreeAt(x, y, z) {
     const tree = new THREE.Group();
     const trunk = new THREE.Mesh(
       new THREE.CylinderGeometry(0.12, 0.2, 0.9, 5),
@@ -282,10 +277,31 @@ class NusantaraGraphicsHD {
     tree.position.set(x, y, z);
     this.scene.add(tree);
     this.trees.push(tree);
-    if (!silent && this.onTerrainEdit) this.onTerrainEdit("tree");
   }
 
-  sculptAt(worldX, worldZ, mode) {
+  handlePointerTool(worldX, worldZ, toolId) {
+    const terrainTools = ["raise", "lower", "flatten", "tree"];
+    if (terrainTools.includes(toolId)) {
+      this._sculptTerrain(worldX, worldZ, toolId);
+      if (this.onWorldAction) this.onWorldAction(worldX, worldZ, toolId);
+      return;
+    }
+
+    if (toolId === "bulldoze") {
+      for (let i = this.trees.length - 1; i >= 0; i--) {
+        if (Math.hypot(this.trees[i].position.x - worldX, this.trees[i].position.z - worldZ) < 3.2) {
+          this.scene.remove(this.trees[i]);
+          this.trees.splice(i, 1);
+        }
+      }
+    }
+
+    if (this.onWorldAction) {
+      this.onWorldAction(worldX, worldZ, toolId);
+    }
+  }
+
+  _sculptTerrain(worldX, worldZ, mode) {
     if (mode === "tree") {
       const y = this.getHeightAt(worldX, worldZ);
       if (y > 0.4) {
@@ -294,18 +310,7 @@ class NusantaraGraphicsHD {
       return;
     }
 
-    if (mode === "bulldoze") {
-      for (let i = this.trees.length - 1; i >= 0; i--) {
-        if (Math.hypot(this.trees[i].position.x - worldX, this.trees[i].position.z - worldZ) < 4.5) {
-          this.scene.remove(this.trees[i]);
-          this.trees.splice(i, 1);
-        }
-      }
-      if (this.onTerrainEdit) this.onTerrainEdit("bulldoze");
-      return;
-    }
-
-    const radius = 8.5;
+    const radius = 8.0;
     const pos = this.terrainGeo.attributes.position;
     let changed = false;
 
@@ -316,8 +321,8 @@ class NusantaraGraphicsHD {
       if (dist < radius) {
         const falloff = Math.cos((dist / radius) * (Math.PI / 2));
         let vy = pos.getY(i);
-        if (mode === "raise") vy = Math.min(24, vy + 0.55 * falloff);
-        if (mode === "lower") vy = Math.max(-4.5, vy - 0.55 * falloff);
+        if (mode === "raise") vy = Math.min(24, vy + 0.5 * falloff);
+        if (mode === "lower") vy = Math.max(-4.5, vy - 0.5 * falloff);
         if (mode === "flatten") vy = vy + (1.55 - vy) * 0.35 * falloff;
         pos.setY(i, vy);
         changed = true;
@@ -327,7 +332,6 @@ class NusantaraGraphicsHD {
     if (changed) {
       pos.needsUpdate = true;
       this._recolorAndNormals();
-      if (this.onTerrainEdit) this.onTerrainEdit(mode);
     }
   }
 
@@ -381,6 +385,10 @@ class NusantaraGraphicsHD {
     this.streetLights.forEach((bulb) => {
       bulb.material.color.setHex(isNight || isGolden ? 0xfef08a : 0x475569);
     });
+
+    if (this.onAtmosphereChange) {
+      this.onAtmosphereChange(isNight);
+    }
   }
 
   _updateCameraPosition() {
@@ -428,7 +436,7 @@ class NusantaraGraphicsHD {
         lastY = e.touches[0].clientY;
         if (this.activeTool) {
           const pt = this._raycastTerrain(lastX, lastY);
-          if (pt) this.sculptAt(pt.x, pt.z, this.activeTool);
+          if (pt) this.handlePointerTool(pt.x, pt.z, this.activeTool);
         }
       } else if (e.touches.length === 2) {
         isDragging = false;
@@ -445,7 +453,7 @@ class NusantaraGraphicsHD {
         const y = e.touches[0].clientY;
         if (this.activeTool) {
           const pt = this._raycastTerrain(x, y);
-          if (pt) this.sculptAt(pt.x, pt.z, this.activeTool);
+          if (pt) this.handlePointerTool(pt.x, pt.z, this.activeTool);
         } else {
           panCamera(x - lastX, y - lastY);
         }
@@ -473,14 +481,13 @@ class NusantaraGraphicsHD {
       lastPinchDist = 0;
     });
 
-    // Dukungan Mouse (jika dites di PC)
     this.canvas.addEventListener("mousedown", (e) => {
       isDragging = true;
       lastX = e.clientX;
       lastY = e.clientY;
       if (this.activeTool && e.button === 0) {
         const pt = this._raycastTerrain(lastX, lastY);
-        if (pt) this.sculptAt(pt.x, pt.z, this.activeTool);
+        if (pt) this.handlePointerTool(pt.x, pt.z, this.activeTool);
       }
     });
 
@@ -488,7 +495,7 @@ class NusantaraGraphicsHD {
       if (!isDragging) return;
       if (this.activeTool && e.buttons === 1) {
         const pt = this._raycastTerrain(e.clientX, e.clientY);
-        if (pt) this.sculptAt(pt.x, pt.z, this.activeTool);
+        if (pt) this.handlePointerTool(pt.x, pt.z, this.activeTool);
       } else if (e.buttons === 2) {
         this.camTheta += (e.clientX - lastX) * 0.008;
         this._updateCameraPosition();
