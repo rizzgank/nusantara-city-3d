@@ -5,16 +5,26 @@
     money: Infinity,
     population: 0,
     happiness: 82,
-    hour: 7.25,
+    hour: 7.5,
     speed: 1,
     activeDockMenu: null,
-    activeSubTool: null,
-    terrainEdits: 0,
-    treesPlanted: 0
+    activeSubTool: null
   };
 
   let engine = null;
   let citySim = null;
+
+  const TOOL_LABELS = {
+    road_local: "Jalan Lingkungan",
+    road_arterial: "Jalan Arteri 4 Lajur",
+    zone_r: "Zona Hijau (Hunian)",
+    zone_c: "Zona Biru (Komersial)",
+    zone_i: "Zona Kuning (Industri)",
+    zone_clear: "Hapus Zona",
+    pln: "Pembangkit PLN",
+    pdam: "Instalasi Air PDAM",
+    bulldoze: "Buldoser Hapus Objek"
+  };
 
   const SUB_MENUS = {
     tata_kota: [
@@ -41,7 +51,7 @@
       { id: "info_gebrakan", label: "🚀 Kuas Distrik, Voting & AI Blueprint (Tahap 4)" }
     ],
     buldoser: [
-      { id: "bulldoze", label: "🪓 Aktifkan Buldoser (Usap untuk Hapus Objek)" }
+      { id: "bulldoze", label: "🪓 Pilih Area Hapus (Tarik Kotak / Ketuk Objek)" }
     ]
   };
 
@@ -50,7 +60,7 @@
     el.textContent = msg;
     el.classList.remove("hidden");
     clearTimeout(showToast._timer);
-    showToast._timer = setTimeout(() => el.classList.add("hidden"), 2700);
+    showToast._timer = setTimeout(() => el.classList.add("hidden"), 2600);
   }
 
   function spendBudget(amount) {
@@ -63,22 +73,61 @@
     return true;
   }
 
+  function updateBlueprintUI(bp) {
+    const bar = document.getElementById("blueprint-bar");
+    const info = document.getElementById("blueprint-info");
+    const rotBtn = document.getElementById("btn-bp-rotate");
+
+    if (!bp) {
+      bar.classList.add("hidden");
+      return;
+    }
+
+    const name = TOOL_LABELS[bp.toolId] || bp.toolId;
+    const sizeText =
+      bp.toolId.startsWith("zone_") || bp.toolId === "bulldoze"
+        ? `${bp.spanW}×${bp.spanH} (${bp.validCount} Petak)`
+        : `${bp.validCount} Petak`;
+    const costText = bp.totalCost > 0 ? ` • Rp ${bp.totalCost.toFixed(2)} M` : "";
+    info.textContent = `${name}: ${sizeText}${costText}`;
+
+    if (bp.toolId === "pln" || bp.toolId === "pdam") {
+      rotBtn.classList.remove("hidden");
+    } else {
+      rotBtn.classList.add("hidden");
+    }
+
+    bar.classList.remove("hidden");
+  }
+
   function updateLensBanner(toolId) {
     const banner = document.getElementById("lens-banner");
     if (!citySim) return;
 
     if (toolId === "pln") {
       citySim.setSmartLens("pln");
-      banner.textContent = "⚡ Lensa Listrik PLN: Biru = Teraliri Listrik • Merah = Butuh Gardu/Pembangkit PLN";
+      banner.textContent = "⚡ Lensa Listrik PLN: Biru = Teraliri Listrik • Merah = Butuh PLN";
       banner.classList.remove("hidden");
     } else if (toolId === "pdam") {
       citySim.setSmartLens("pdam");
-      banner.textContent = "💧 Lensa Air PDAM: Biru = Teraliri Air Bersih • Merah = Butuh Instalasi PDAM";
+      banner.textContent = "💧 Lensa Air PDAM: Biru = Teraliri Air • Merah = Butuh PDAM";
       banner.classList.remove("hidden");
     } else {
       citySim.setSmartLens(null);
       banner.classList.add("hidden");
     }
+  }
+
+  function clearActiveTool() {
+    state.activeSubTool = null;
+    if (engine) {
+      engine.activeTool = null;
+      engine.setGridVisible(false);
+    }
+    if (citySim) citySim.clearBlueprint();
+    updateBlueprintUI(null);
+    updateLensBanner(null);
+    document.querySelectorAll(".sub-btn").forEach((x) => x.classList.remove("active"));
   }
 
   function initLauncher() {
@@ -118,25 +167,27 @@
       state.money = modeCfg.startMoney;
       state.population = 0;
       state.happiness = 82;
-      state.hour = 7.25;
-      state.terrainEdits = 0;
-      state.treesPlanted = 0;
+      state.hour = 7.5;
 
       document.getElementById("launcher-screen").classList.add("hidden");
       document.getElementById("hud-layer").classList.remove("hidden");
 
       if (!engine) {
-        engine = new NusantaraGraphicsHD(document.getElementById("game-canvas"), (wx, wz, toolId) => {
-          if (toolId === "tree") {
-            state.treesPlanted++;
-            return;
-          }
-          if (toolId === "raise" || toolId === "lower" || toolId === "flatten") {
-            state.terrainEdits++;
-            return;
-          }
-          if (citySim) {
-            citySim.applyToolAt(wx, wz, toolId, spendBudget);
+        engine = new NusantaraGraphicsHD(document.getElementById("game-canvas"), {
+          onSelectionStart: (wx, wz, toolId) => {
+            if (!citySim) return;
+            const bp = citySim.beginSelection(wx, wz, toolId);
+            updateBlueprintUI(bp);
+          },
+          onSelectionMove: (wx, wz, toolId) => {
+            if (!citySim) return;
+            const bp = citySim.updateSelection(wx, wz, toolId);
+            updateBlueprintUI(bp);
+          },
+          onSelectionEnd: () => {
+            if (citySim && citySim.pendingBlueprint) {
+              updateBlueprintUI(citySim.pendingBlueprint);
+            }
           }
         });
         citySim = new CityRCISystem(engine);
@@ -144,12 +195,13 @@
         startLoop();
       }
 
+      clearActiveTool();
       engine.loadRegion(state.region);
       citySim.resetCity();
       engine.updateAtmosphere(state.hour);
       updateHUD();
       resetChatWelcome();
-      showToast(`Selamat menjabat di ${state.region.name}! Tarik jalan dari Gerbang Tol lalu warnai Zona RCI.`);
+      showToast(`Selamat menjabat di ${state.region.name}! 2 jari cubit/geser untuk atur kamera.`);
     });
   }
 
@@ -190,22 +242,21 @@
         const menuKey = btn.dataset.menu;
         if (state.activeDockMenu === menuKey) {
           state.activeDockMenu = null;
-          state.activeSubTool = null;
-          if (engine) engine.activeTool = null;
-          updateLensBanner(null);
+          clearActiveTool();
           dockBtns.forEach((b) => b.classList.remove("active"));
           subMenu.classList.add("hidden");
           return;
         }
 
         state.activeDockMenu = menuKey;
+        clearActiveTool();
         dockBtns.forEach((b) => b.classList.remove("active"));
         btn.classList.add("active");
 
         subMenu.innerHTML = "";
         (SUB_MENUS[menuKey] || []).forEach((item) => {
           const sb = document.createElement("button");
-          sb.className = "sub-btn" + (state.activeSubTool === item.id ? " active" : "");
+          sb.className = "sub-btn";
           sb.textContent = item.label;
           sb.addEventListener("click", () => {
             if (item.id.startsWith("info_")) {
@@ -213,18 +264,19 @@
               return;
             }
             if (state.activeSubTool === item.id) {
-              state.activeSubTool = null;
-              if (engine) engine.activeTool = null;
-              updateLensBanner(null);
-              sb.classList.remove("active");
-              showToast("Mode kamera bebas aktif (1 jari geser, 2 jari zoom/putar).");
+              clearActiveTool();
+              showToast("Mode kamera bebas aktif.");
             } else {
-              document.querySelectorAll(".sub-btn").forEach((x) => x.classList.remove("active"));
+              clearActiveTool();
               sb.classList.add("active");
               state.activeSubTool = item.id;
-              if (engine) engine.activeTool = item.id;
+              if (engine) {
+                engine.activeTool = item.id;
+                const isSculpt = ["raise", "lower", "flatten", "tree"].includes(item.id);
+                engine.setGridVisible(!isSculpt);
+              }
               updateLensBanner(item.id);
-              showToast(`Alat aktif: ${item.label}. Usap layar untuk membangun!`);
+              showToast(`Alat aktif: ${item.label}. Tarik garis/kotak lalu tekan ✓ Bangun.`);
             }
           });
           subMenu.appendChild(sb);
@@ -232,6 +284,34 @@
 
         subMenu.classList.remove("hidden");
       });
+    });
+
+    // Tombol Konfirmasi Cetak Biru Presisi
+    document.getElementById("btn-bp-confirm").addEventListener("click", () => {
+      if (!citySim) return;
+      if (citySim.confirmBlueprint(spendBudget)) {
+        updateBlueprintUI(null);
+        updateHUD();
+        showToast("Konstruksi selesai dibangun!");
+      }
+    });
+
+    document.getElementById("btn-bp-rotate").addEventListener("click", () => {
+      if (!citySim) return;
+      const bp = citySim.rotateBlueprint();
+      updateBlueprintUI(bp);
+    });
+
+    document.getElementById("btn-bp-cancel").addEventListener("click", () => {
+      if (citySim) citySim.clearBlueprint();
+      updateBlueprintUI(null);
+    });
+
+    // Tombol Toggle Sudut Kamera (3D Sinematik <-> Top-Down Presisi)
+    document.getElementById("btn-cam-view").addEventListener("click", (e) => {
+      if (!engine) return;
+      const isTop = engine.toggleCameraAngle();
+      e.currentTarget.textContent = isTop ? "📐 Sudut: Atas" : "📐 Sudut: 3D";
     });
 
     document.querySelectorAll(".speed-btn").forEach((btn) => {
@@ -252,7 +332,7 @@
     box.innerHTML = "";
     appendChatMsg(
       "ai",
-      `Halo Kepala Daerah! Selamat datang di <strong>${state.region.name}</strong>.<br><br><strong>Tahap 2 sudah aktif:</strong><br>1. Buka <strong>🛣️ Tata Kota</strong> lalu tarik jalan dari ujung <em>Gerbang Tol</em>.<br>2. Warnai <strong>🟩 Zona Hijau</strong>, <strong>🟦 Zona Biru</strong>, dan <strong>🟨 Zona Kuning</strong> di pinggir jalan.<br>3. Bangun <strong>⚡ PLN</strong> dan <strong>💧 PDAM</strong> di menu <strong>🏛️ Layanan</strong> agar bangunan berevolusi menjadi gedung modern!`
+      `Halo Kepala Daerah! Selamat datang di <strong>${state.region.name}</strong>.<br><br>• <strong>Peta Luas 6.400 Kavling:</strong> Coba <em>zoom out</em> dengan 2 jari untuk melihat barisan pegunungan & aliran sungai asli daerah ini.<br>• <strong>Penempatan Presisi:</strong> Tarik garis lurus untuk jalan raya atau tarik kotak persegi untuk Zona RCI, lalu ketuk <strong>✓ Bangun</strong>.`
     );
   }
 
@@ -270,24 +350,19 @@
     const reg = state.region;
     const s = citySim ? citySim.stats : null;
 
-    if (q.includes("belum tumbuh") || q.includes("kenapa rumah")) {
-      return `<strong>Syarat Bangunan Tumbuh Otomatis:</strong><br>1. Zona (Hijau/Biru/Kuning) wajib menempel tepat di samping petak jalan.<br>2. Jalan tersebut harus <strong>tersambung ke Jalan Tol Awal (Gerbang Biru)</strong> di selatan agar truk material & warga pendatang bisa masuk.<br>3. Kecepatan waktu tidak dalam kondisi <em>Pause (⏸️)</em>.`;
+    if (q.includes("kamera") || q.includes("2 jari")) {
+      return `<strong>Kontrol Kamera Pro:</strong><br>• <strong>1 Jari Geser</strong> (saat alat mati): Menggeser peta mulus.<br>• <strong>2 Jari Cubit:</strong> Zoom dekat ke atap rumah hingga zoom jauh melihat puncak gunung.<br>• <strong>2 Jari Putar:</strong> Memutar sudut pandang 360°.<br>• <strong>2 Jari Geser Naik/Turun</strong> (atau ketuk <strong>📐 Sudut</strong> di kanan): Mengubah kemiringan kamera dari sudut tegak atas ala <em>TheoTown</em> ke sudut 3D rendah.`;
     }
 
-    if (s && (q.includes("progress") || q.includes("cek") || q.includes("abis ini") || q.includes("gimana"))) {
-      const tips = [];
-      if (s.roads === 0) tips.push("• Tarik jaringan jalan baru menyambung dari ujung jalan Gerbang Tol di selatan.");
-      if (s.rBuildings === 0) tips.push("• Warnai <strong>🟩 Zona Hijau</strong> di pinggir jalan agar warga pendatang mulai membangun rumah.");
-      if (s.rBuildings > 0 && s.cBuildings === 0) tips.push("• Warga sudah mulai tinggal! Warnai <strong>🟦 Zona Biru</strong> agar ruko & warung tumbuh.");
-      if (s.rBuildings > 0 && s.iBuildings === 0) tips.push("• Warnai <strong>🟨 Zona Kuning</strong> agak terpisah dari perumahan untuk membuka lapangan kerja.");
-      if (s.plnCount === 0 || s.unpoweredCount > 0) tips.push("• Bangun <strong>⚡ Pembangkit PLN</strong> di menu <em>Layanan</em> karena ada bangunan yang belum mendapat listrik.");
-      if (s.pdamCount === 0 || s.unwateredCount > 0) tips.push("• Bangun <strong>💧 Instalasi PDAM</strong> di menu <em>Layanan</em> agar bangunan bisa naik ke Level 2 & 3.");
-      if (tips.length === 0) tips.push("• Infrastruktur dasar sangat sehat! Perluas jalan arteri dan tambah zona RCI untuk memperbesar populasi & pemasukan pajak.");
-
-      return `<strong>Hasil Pemindaian Kota ${reg.name}:</strong><br>• <strong>Populasi:</strong> ${state.population.toLocaleString("id-ID")} jiwa (Kepuasan ${state.happiness}%)<br>• <strong>Jalan Dibangun:</strong> ${s.roads} petak | <strong>Utilitas:</strong> ${s.plnCount} PLN, ${s.pdamCount} PDAM<br>• <strong>Tingkat Bangunan (R/C/I):</strong> ${s.rBuildings} / ${s.cBuildings} / ${s.iBuildings}<br><br><strong>Rekomendasi Langkah Berikutnya:</strong><br>${tips.join("<br>")}`;
+    if (q.includes("presisi") || q.includes("naruh jalan") || q.includes("tarik jalan")) {
+      return `<strong>Cara Membangun Presisi (Anti-Melenceng):</strong><br>1. Pilih alat jalan atau zona di <strong>🛣️ Tata Kota</strong>.<br>2. Sentuh dan geser jari untuk membentuk garis lurus (jalan) atau kotak persegi (zona RCI).<br>3. Anda bebas menggeser kamera dengan 2 jari untuk mengecek pratinjau biru sebelum menekan <strong>✓ Bangun</strong>.`;
     }
 
-    return `Saya memantau <strong>${reg.name}</strong> secara langsung. Gunakan kuas di <strong>🛣️ Tata Kota</strong> untuk menyambung jalan dari Gerbang Tol dan mewarnai zona RCI, serta <strong>🏛️ Layanan</strong> untuk memasang PLN & PDAM. Ketuk chip <em>"Cek progress kotaku sekarang"</em> kapan pun untuk audit otomatis!`;
+    if (s && (q.includes("progress") || q.includes("cek"))) {
+      return `<strong>Laporan Kota ${reg.name}:</strong><br>• <strong>Populasi:</strong> ${state.population.toLocaleString("id-ID")} jiwa (Kepuasan ${state.happiness}%)<br>• <strong>Jalan Raya:</strong> ${s.roads} petak | <strong>Utilitas:</strong> ${s.plnCount} PLN, ${s.pdamCount} PDAM<br>• <strong>Tingkat Bangunan (R/C/I):</strong> ${s.rBuildings} / ${s.cBuildings} / ${s.iBuildings}`;
+    }
+
+    return `Saya memantau <strong>${reg.name}</strong> secara langsung. Gunakan garis grid bantu untuk menyambungkan jalan arteri dari Gerbang Tol Nusantara, warnai blok zona RCI, serta pasang PLN & PDAM agar gedung bertingkat tumbuh otomatis.`;
   }
 
   function initChat() {
@@ -332,7 +407,6 @@
         if (engine) engine.updateAtmosphere(state.hour);
         if (citySim) citySim.stepSimulation(delta, state.speed);
 
-        // Siklus Pemasukan Pajak & Biaya Operasional Harian (Real Mode)
         taxTimer += delta * state.speed;
         if (taxTimer >= 8 && citySim && state.money !== Infinity) {
           taxTimer = 0;
