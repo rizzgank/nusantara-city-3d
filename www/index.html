@@ -8,21 +8,19 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-  <!-- KANVAS DUNIA 3D UTAMA (Juga menjadi latar hidup di Menu Utama) -->
+  <!-- KANVAS DUNIA 3D UTAMA -->
   <canvas id="game-canvas"></canvas>
 
-  <!-- 1. INTRO SINEMATIK PEMBUKA (Judul Game -> Logo RG Rizzi Games) -->
+  <!-- 1. INTRO SINEMATIK PEMBUKA -->
   <div id="intro-splash" class="intro-splash">
     <div class="intro-particles"></div>
 
-    <!-- Tahap 1: Judul Game -->
     <div id="splash-stage-title" class="splash-stage active">
       <div class="splash-kicker">SIMULASI TATA KOTA 3D NUSANTARA</div>
       <h1 class="splash-main-title">City Building : Nusantara Project</h1>
       <div class="splash-divider"></div>
     </div>
 
-    <!-- Tahap 2: Logo Developer RG (Rizzi Games) -->
     <div id="splash-stage-logo" class="splash-stage">
       <div class="rg-emblem-wrap">
         <svg class="rg-svg" viewBox="0 0 140 140" width="118" height="118" aria-label="RG Logo">
@@ -41,7 +39,6 @@
           <polygon points="70,15 119,43 119,97 70,125 21,97 21,43" fill="none" stroke="rgba(253,224,71,0.35)" stroke-width="1.5" />
           <text x="70" y="84" text-anchor="middle" fill="url(#rgGold)" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="46" letter-spacing="-2">RG</text>
         </svg>
-        <div class="rg-sheen"></div>
       </div>
       <div class="rg-studio-name">RIZZI GAMES</div>
       <div class="rg-studio-sub">INTERACTIVE ENTERTAINMENT</div>
@@ -50,7 +47,7 @@
     <div class="splash-skip-hint">Ketuk layar untuk melewati</div>
   </div>
 
-  <!-- 2. UI MENU UTAMA (Main Menu Modern) -->
+  <!-- 2. UI MENU UTAMA -->
   <div id="main-menu-screen" class="screen-overlay hidden">
     <div class="menu-top-brand">
       <span class="menu-studio-pill">RG • RIZZI GAMES PRESENTS</span>
@@ -78,7 +75,7 @@
     </div>
   </div>
 
-  <!-- 3. PILIHAN MODE PERMAINAN (Sandbox vs Real Mode) -->
+  <!-- 3. PILIHAN MODE PERMAINAN -->
   <div id="mode-select-screen" class="screen-overlay hidden">
     <div class="flow-card">
       <div class="flow-header">
@@ -102,14 +99,14 @@
           <div class="choice-badge">SIMULASI KEPALA DAERAH</div>
           <div class="choice-icon">🏛️</div>
           <h3>REAL MODE</h3>
-          <p>Kelola APBD nyata, pajak warga, biaya operasional PLN/PDAM, serta tuntutan kebutuhan warga dari Desa hingga Megapolitan.</p>
+          <p>Kelola APBD nyata, pajak warga, biaya operasional PLN/PDAM/Sekolah, serta tuntutan kebutuhan warga dari Desa hingga Megapolitan.</p>
           <span class="choice-cta">Pilih Tingkat Kesulitan →</span>
         </button>
       </div>
     </div>
   </div>
 
-  <!-- 4. PILIHAN TINGKAT KESULITAN (Khusus Real Mode) -->
+  <!-- 4. PILIHAN TINGKAT KESULITAN -->
   <div id="difficulty-select-screen" class="screen-overlay hidden">
     <div class="flow-card">
       <div class="flow-header">
@@ -122,21 +119,18 @@
 
       <div class="diff-cards-grid">
         <button class="diff-card diff-easy" data-diff="easy">
-          <div class="diff-dot"></div>
           <h3>🟢 EASY (Perintis)</h3>
           <div class="diff-stat">Modal Awal: <strong>Rp 250,0 M</strong></div>
           <p>Biaya operasional infrastruktur ringan dan warga lebih sabar menunggu fasilitas baru.</p>
         </button>
 
         <button class="diff-card diff-medium" data-diff="medium">
-          <div class="diff-dot"></div>
           <h3>🟡 MEDIUM (Walikota)</h3>
           <div class="diff-stat">Modal Awal: <strong>Rp 120,0 M</strong></div>
           <p>Keseimbangan pajak, kebutuhan listrik, air, ibadah, dan pendidikan standar.</p>
         </button>
 
         <button class="diff-card diff-hard" data-diff="hard">
-          <div class="diff-dot"></div>
           <h3>🔴 HARD (Krisis APBD)</h3>
           <div class="diff-stat">Modal Awal: <strong>Rp 60,0 M</strong></div>
           <p>Anggaran awal ketat dan biaya perawatan tinggi. Salah tata kota langsung memicu defisit.</p>
@@ -145,7 +139,7 @@
     </div>
   </div>
 
-  <!-- 5. PILIHAN PETA WILAYAH + 3D TERRAIN PREVIEW DI SAMPING -->
+  <!-- 5. PILIHAN PETA WILAYAH + 3D TERRAIN PREVIEW -->
   <div id="map-select-screen" class="screen-overlay hidden">
     <div class="map-split-card">
       <div class="map-left-pane">
@@ -219,8 +213,8 @@
       </div>
     </div>
 
-    <!-- Banner Lensa Utilitas -->
-    <div id="lens-banner" class="lens-banner hidden">⚡ Lensa Utilitas Aktif</div>
+    <!-- Banner Lensa Cakupan Layanan -->
+    <div id="lens-banner" class="lens-banner hidden">⚡ Lensa Cakupan Aktif</div>
 
     <!-- Opsi Bentuk Jalan & Pohon Trotoar -->
     <div id="road-options-bar" class="road-options-bar hidden">
@@ -237,22 +231,36 @@
       <button id="btn-game-menu" class="side-btn">💾 Simpan / Menu</button>
     </div>
 
+    <!-- Kartu Inspeksi Bangunan (Tap to Inspect) -->
+    <div id="inspect-card" class="inspect-card hidden">
+      <div class="inspect-head">
+        <div>
+          <span id="ins-badge" class="ins-badge">Hunian Level 1</span>
+          <h4 id="ins-title">Rumah Tapak Warga</h4>
+        </div>
+        <button id="btn-close-inspect" class="ins-close">✕</button>
+      </div>
+      <div id="ins-stats" class="ins-stats">Penghuni: 12 Jiwa • Lahan Terasering</div>
+      <div id="ins-needs" class="ins-needs-grid"></div>
+      <div id="ins-tip" class="ins-tip">Butuh Listrik PLN, Air PDAM &amp; Tempat Ibadah untuk naik ke Level 2.</div>
+    </div>
+
     <!-- Bilah Konfirmasi Cetak Biru -->
     <div id="blueprint-bar" class="blueprint-bar hidden">
       <span id="blueprint-info">Siap Bangun</span>
-      <button id="btn-bp-curve" class="bp-btn bp-rot hidden">🔄 Balik Arah Lengkung</button>
+      <button id="btn-bp-curve" class="bp-btn bp-rot hidden">🔄 Balik Lengkung</button>
       <button id="btn-bp-rotate" class="bp-btn bp-rot hidden">↻ Putar</button>
       <button id="btn-bp-confirm" class="bp-btn bp-ok">✓ Bangun</button>
       <button id="btn-bp-cancel" class="bp-btn bp-no">✕ Batal</button>
     </div>
 
-    <!-- Sub-Menu & Dock Bawah -->
+    <!-- Sub-Menu & Dock Bawah (Menu Jalan Terpisah!) -->
     <div id="sub-menu" class="sub-menu hidden"></div>
     <div class="bottom-dock">
-      <button class="dock-btn" data-menu="tata_kota">🛣️ Tata Kota</button>
+      <button class="dock-btn" data-menu="jalan">🛣️ Jalan</button>
+      <button class="dock-btn" data-menu="zona_lahan">🗺️ Zona &amp; Lahan</button>
       <button class="dock-btn" data-menu="layanan">🏛️ Layanan</button>
-      <button class="dock-btn" data-menu="perda">📜 Perda</button>
-      <button class="dock-btn" data-menu="gebrakan">🚀 Gebrakan</button>
+      <button class="dock-btn" data-menu="perda_gebrakan">🚀 Gebrakan</button>
       <button class="dock-btn" data-menu="buldoser">🪓 Buldoser</button>
     </div>
 
@@ -264,7 +272,7 @@
       </div>
       <div id="chat-messages" class="chat-messages"></div>
       <div class="chat-chips">
-        <button class="chip-btn" data-q="Cek progress kota">📊 Cek Progress</button>
+        <button class="chip-btn" data-q="Cek kebutuhan warga">📊 Kebutuhan Warga</button>
         <button class="chip-btn" data-q="Cara buat bundaran alun-alun">⭕ Bundaran</button>
         <button class="chip-btn" data-q="Cara naik level kota">🏆 Naik Level</button>
       </div>
@@ -279,7 +287,7 @@
   <div id="saveload-modal" class="modal-backdrop hidden">
     <div class="modal-box modal-wide">
       <div class="modal-head">
-        <h3 id="saveload-title">💾 Penyimpanan Kota (Save / Load)</h3>
+        <h3>💾 Penyimpanan Kota (Save / Load)</h3>
         <button id="btn-close-saveload" class="modal-close-btn">✕</button>
       </div>
       <p class="modal-sub">Auto-Save berjalan otomatis setiap 3 menit saat bermain. Maksimal 4 slot simpan manual.</p>
