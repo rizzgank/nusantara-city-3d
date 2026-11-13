@@ -38,6 +38,18 @@ jobs:
           cd ios
           xcodegen generate
 
+      - name: Pasang Logo Aplikasi iOS
+        run: |
+          mkdir -p resources
+          cp www/assets/logo-nusantara.svg resources/icon.svg
+          if ! npx -y @capacitor/assets generate --ios; then
+            brew install librsvg
+            ICON_DIR="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+            mkdir -p "$ICON_DIR"
+            rsvg-convert -w 1024 -h 1024 www/assets/logo-nusantara.svg -o "$ICON_DIR/AppIcon-512@2x.png"
+            printf '{"images":[{"filename":"AppIcon-512@2x.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"author":"xcode","version":1}}\n' > "$ICON_DIR/Contents.json"
+          fi
+
       - name: Build Unsigned iOS App
         run: |
           xcodebuild -project ios/NusantaraCity.xcodeproj \
