@@ -1,6 +1,26 @@
 (function () {
   const SAVE_STORAGE_KEY = "nusantara_city_saves_v1";
 
+  const FALLBACK_REGIONS = [
+    {
+      id: "malang",
+      name: "Malang Raya",
+      baseTemp: 20,
+      biomeLabel: "Lembah Pegunungan",
+      weatherLabel: "Kabut Sejuk",
+      fogColor: 0xbae6fd,
+      waterLevel: -0.25,
+      highway: { x: 0, label: "Tol Pandaan–Malang" },
+      desc: "Dataran tinggi sejuk dikelilingi pegunungan hijau dan aliran sungai jernih."
+    }
+  ];
+
+  function getRegionsList() {
+    return Array.isArray(window.INDONESIA_REGIONS) && window.INDONESIA_REGIONS.length > 0
+      ? window.INDONESIA_REGIONS
+      : FALLBACK_REGIONS;
+  }
+
   const DIFFICULTY_CONFIG = {
     easy: { key: "easy", label: "Easy (Perintis)", startMoney: 250.0, upkeepMult: 0.7 },
     medium: { key: "medium", label: "Medium (Walikota)", startMoney: 120.0, upkeepMult: 1.0 },
@@ -9,7 +29,7 @@
 
   const state = {
     inGame: false,
-    region: window.INDONESIA_REGIONS[0],
+    region: getRegionsList()[0],
     modeKey: "sandbox",
     difficultyKey: "medium",
     money: Infinity,
@@ -55,7 +75,6 @@
     bulldoze: "Buldoser Hapus Objek"
   };
 
-  // DOCK BAWAH TERPISAH: JALAN vs ZONA & LAHAN vs LAYANAN ALA THEOTOWN
   const SUB_MENUS = {
     jalan: [
       { id: "road_4lane", label: "🛣️ Jalan 4 Lajur [2 Petak] (Rp 0,40M)" },
@@ -129,46 +148,102 @@
   }
 
   // =========================================================
-  // 1. INTRO SINEMATIK
+  // 1. INTRO SINEMATIK SIMPEL & ANTI-STUCK
   // =========================================================
-  function playIntroCinematic(onComplete) {
+  function clearIntroTimers() {
     introTimers.forEach((t) => clearTimeout(t));
     introTimers = [];
+  }
+
+  function playIntroCinematic(onComplete) {
+    clearIntroTimers();
 
     const splash = document.getElementById("intro-splash");
     const stageTitle = document.getElementById("splash-stage-title");
     const stageLogo = document.getElementById("splash-stage-logo");
 
-    splash.classList.remove("hidden", "fade-out");
-    stageTitle.classList.remove("play-cinematic");
-    stageLogo.classList.remove("play-cinematic");
-    void stageTitle.offsetWidth;
-
-    stageTitle.classList.add("play-cinematic");
-
-    introTimers.push(
-      setTimeout(() => {
-        stageTitle.classList.remove("play-cinematic");
-        stageLogo.classList.add("play-cinematic");
-      }, 2650)
-    );
-
+    let completed = false;
     const finishIntro = () => {
-      introTimers.forEach((t) => clearTimeout(t));
-      introTimers = [];
+      if (completed) return;
+      completed = true;
+      clearIntroTimers();
       splash.classList.add("fade-out");
       setTimeout(() => {
         splash.classList.add("hidden");
         if (onComplete) onComplete();
-      }, 650);
+      }, 550);
     };
 
-    introTimers.push(setTimeout(finishIntro, 5350));
+    splash.classList.remove("hidden", "fade-out");
+    stageTitle.className = "splash-stage";
+    stageLogo.className = "splash-stage";
+
+    // Tahap 1: Judul Game (Fade In + Zoom In -> Zoom Out + Fade Out)
+    introTimers.push(
+      setTimeout(() => {
+        stageTitle.classList.add("stage-visible");
+      }, 80)
+    );
+
+    introTimers.push(
+      setTimeout(() => {
+        stageTitle.classList.remove("stage-visible");
+        stageTitle.classList.add("stage-exit");
+      }, 1900)
+    );
+
+    // Tahap 2: Logo Rizzi Games (Simple & Bersih)
+    introTimers.push(
+      setTimeout(() => {
+        stageLogo.classList.add("stage-visible");
+      }, 2650)
+    );
+
+    introTimers.push(
+      setTimeout(() => {
+        stageLogo.classList.remove("stage-visible");
+        stageLogo.classList.add("stage-exit");
+      }, 4400)
+    );
+
+    // Selesai otomatis masuk Menu Utama
+    introTimers.push(setTimeout(finishIntro, 5050));
+
+    // Bisa langsung diketuk untuk skip
     splash.onclick = finishIntro;
   }
 
   // =========================================================
-  // 2. ENGINE 3D & KARTU INSPEKSI BANGUNAN
+  // 2. BLOKIR POPUP COPY/PASTE iOS SECARA GLOBAL
+  // =========================================================
+  function installIOSSelectionGuard() {
+    const isEditable = (el) =>
+      el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
+
+    document.addEventListener("contextmenu", (e) => {
+      if (!isEditable(e.target)) e.preventDefault();
+    });
+
+    document.addEventListener(
+      "touchstart",
+      (e) => {
+        if (!isEditable(e.target) && e.target.id === "game-canvas") {
+          e.preventDefault();
+        }
+      },
+      { passive: false }
+    );
+
+    document.addEventListener("selectionchange", () => {
+      if (!isEditable(document.activeElement)) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) sel.removeAllRanges();
+      }
+    });
+  }
+
+  // =========================================================
+  // 3. ENGINE 3D & KARTU INSPEKSI BANGUNAN
   // =========================================================
   function showInspectCard(info) {
     const card = document.getElementById("inspect-card");
@@ -207,6 +282,10 @@
 
   function ensureMainEngine() {
     if (engine) return;
+    if (typeof window.NusantaraGraphicsHD !== "function" || typeof window.CityRCISystem !== "function") {
+      return;
+    }
+
     engine = new NusantaraGraphicsHD(document.getElementById("game-canvas"), {
       onSelectionStart: (wx, wz, toolId) => {
         if (!citySim || !state.inGame) return;
@@ -254,7 +333,7 @@
 
   function update3DMapPreview(region) {
     const canvas = document.getElementById("map-preview-canvas");
-    if (!canvas) return;
+    if (!canvas || typeof THREE === "undefined") return;
 
     if (!previewRenderer) {
       previewRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -276,7 +355,7 @@
       previewCamera.updateProjectionMatrix();
     }
 
-    previewScene.background = new THREE.Color(region.fogColor);
+    previewScene.background = new THREE.Color(region.fogColor || 0xbae6fd);
 
     if (previewMesh) {
       previewScene.remove(previewMesh);
@@ -297,7 +376,9 @@
       const pz = pos.getZ(i);
       const wx = (px / (size / 2)) * 160;
       const wz = (pz / (size / 2)) * 160;
-      const h = window.generateRegionHeight(region, wx, wz, 160);
+      const h = typeof window.generateRegionHeight === "function"
+        ? window.generateRegionHeight(region, wx, wz, 160)
+        : 1.5;
       pos.setY(i, h * 0.35);
 
       if (h < -0.1) c.setHex(0x0284c7);
@@ -320,7 +401,7 @@
   }
 
   // =========================================================
-  // 3. SISTEM SAVE & LOAD
+  // 4. SISTEM SAVE & LOAD
   // =========================================================
   function loadAllSaveSlots() {
     try {
@@ -365,10 +446,7 @@
             hasSidewalkTrees: c.hasSidewalkTrees,
             zone: c.zone,
             building: c.building
-              ? {
-                  zone: c.building.zone,
-                  level: c.building.level
-                }
+              ? { zone: c.building.zone, level: c.building.level }
               : null
           });
         }
@@ -407,7 +485,8 @@
     const data = all[slotKey];
     if (!data) return;
 
-    const reg = window.INDONESIA_REGIONS.find((r) => r.id === data.regionId) || window.INDONESIA_REGIONS[0];
+    const regions = getRegionsList();
+    const reg = regions.find((r) => r.id === data.regionId) || regions[0];
     state.region = reg;
     state.modeKey = data.modeKey || "sandbox";
     state.difficultyKey = data.difficultyKey || "medium";
@@ -563,7 +642,7 @@
   }
 
   // =========================================================
-  // 4. ALUR MENU UTAMA -> MODE -> KESULITAN -> PETA -> GAME
+  // 5. ALUR MENU UTAMA -> MODE -> KESULITAN -> PETA -> GAME
   // =========================================================
   function showMainMenu() {
     state.inGame = false;
@@ -600,21 +679,21 @@
     hideAllScreens();
     document.getElementById("hud-layer").classList.remove("hidden");
 
+    ensureMainEngine();
     if (isFreshNewCity) {
       state.money = state.modeKey === "sandbox" ? Infinity : DIFFICULTY_CONFIG[state.difficultyKey].startMoney;
       state.population = 0;
       state.happiness = 82;
       state.hour = 7.5;
 
-      ensureMainEngine();
       clearActiveTool();
-      engine.loadRegion(state.region);
-      citySim.resetCity(state.region);
+      if (engine) engine.loadRegion(state.region);
+      if (citySim) citySim.resetCity(state.region);
       resetChatWelcome();
       showToast(`Selamat menjabat di ${state.region.name}! Populasi mulai dari 0 jiwa.`);
     }
 
-    engine.updateAtmosphere(state.hour);
+    if (engine) engine.updateAtmosphere(state.hour);
     updateHUD();
   }
 
@@ -650,7 +729,7 @@
     });
 
     const grid = document.getElementById("region-grid");
-    window.INDONESIA_REGIONS.forEach((reg, idx) => {
+    getRegionsList().forEach((reg, idx) => {
       const card = document.createElement("button");
       card.className = "region-card" + (idx === 0 ? " active" : "");
       card.innerHTML = `
@@ -760,7 +839,7 @@
   }
 
   // =========================================================
-  // 5. KONTROL HUD, MENU JALAN TERPISAH & CHAT AI
+  // 6. KONTROL HUD, MENU JALAN TERPISAH & CHAT AI
   // =========================================================
   function updateBlueprintUI(bp) {
     const bar = document.getElementById("blueprint-bar");
@@ -1028,7 +1107,7 @@
   }
 
   // =========================================================
-  // 6. MAIN RENDER & SIMULATION LOOP
+  // 7. MAIN RENDER & SIMULATION LOOP
   // =========================================================
   function startLoop() {
     let lastTime = performance.now();
@@ -1090,21 +1169,23 @@
   }
 
   function bootApp() {
-    document.addEventListener("contextmenu", (e) => {
-      if (!["INPUT", "TEXTAREA"].includes(e.target.tagName)) {
-        e.preventDefault();
-      }
+    installIOSSelectionGuard();
+
+    // Jalankan intro lebih dulu agar tidak pernah terhambat inisialisasi 3D
+    playIntroCinematic(() => {
+      showMainMenu();
     });
 
-    ensureMainEngine();
+    try {
+      ensureMainEngine();
+    } catch (err) {
+      console.error("Engine init warning:", err);
+    }
+
     initScreensAndFlows();
     initDock();
     initChat();
     startLoop();
-
-    playIntroCinematic(() => {
-      showMainMenu();
-    });
   }
 
   if (document.readyState === "loading") {
