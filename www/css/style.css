@@ -45,7 +45,7 @@ html, body {
   width: 100%;
   max-width: 960px;
   max-height: 100%;
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(15, 23, 42, 0.92);
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 18px;
   padding: 16px 20px;
@@ -217,7 +217,7 @@ html, body {
 
 .hud-pill {
   pointer-events: auto;
-  background: rgba(15, 23, 42, 0.82);
+  background: rgba(15, 23, 42, 0.84);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 99px;
@@ -309,6 +309,45 @@ html, body {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
+/* Bilah Opsi Bentuk Jalan & Pohon Trotoar */
+.road-options-bar {
+  position: fixed;
+  top: calc(max(8px, env(safe-area-inset-top)) + 44px);
+  left: max(12px, env(safe-area-inset-left));
+  z-index: 22;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  padding: 5px 8px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.ropt-btn {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ropt-btn.active {
+  background: #0284c7;
+  border-color: #7dd3fc;
+  color: #ffffff;
+}
+
+.ropt-btn.tree-opt.active {
+  background: #15803d;
+  border-color: #86efac;
+}
+
 /* Right Floating Stack */
 #right-actions {
   position: fixed;
@@ -349,7 +388,7 @@ html, body {
 /* Precision Blueprint Confirmation Bar */
 .blueprint-bar {
   position: fixed;
-  top: calc(max(8px, env(safe-area-inset-top)) + 44px);
+  top: calc(max(8px, env(safe-area-inset-top)) + 86px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
@@ -360,7 +399,7 @@ html, body {
   padding: 7px 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
 }
 
@@ -379,7 +418,7 @@ html, body {
 .bp-btn {
   border: none;
   border-radius: 8px;
-  padding: 6px 11px;
+  padding: 6px 10px;
   font-size: 11.5px;
   font-weight: 800;
   cursor: pointer;
@@ -391,7 +430,7 @@ html, body {
   color: #ffffff;
 }
 
-.bp-btn.rotate {
+.bp-btn.rotate, .bp-btn.curve {
   background: #0284c7;
   color: #ffffff;
 }
@@ -562,7 +601,7 @@ html, body {
   gap: 6px;
   overflow-x: auto;
   max-width: 92vw;
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(15, 23, 42, 0.92);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(56, 189, 248, 0.35);
   padding: 6px 10px;
