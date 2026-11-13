@@ -1,89 +1,244 @@
 class ProceduralHDTextures {
   static createAll() {
+    const houseWin = this._makeWindowPair("#e2e8f0", "#fef08a", 4, 3, 0.42);
+    const towerWin = this._makeWindowPair("#1e293b", "#fde68a", 8, 12, 0.46);
     return {
       grassDetail: this._makeGrassSoilTexture(),
       rockDetail: this._makeRockTexture(),
+      treeLeafAlpha: this._makeBotanicalLeafAlpha("#14532d", "#22c55e", "#84cc16"),
+      pineLeafAlpha: this._makePineNeedleAlpha(),
+      palmFrondAlpha: this._makePalmFrondAlpha(),
+      grassTuftAlpha: this._makeGrassBladeAlpha(),
       asphalt: this._makeAsphaltTexture(),
       bikeAsphalt: this._makeBikeLaneTexture(),
       pavingStone: this._makePavingTexture(),
       roofTile: this._makeRoofTileTexture(),
-      windowHouse: this._makeWindowTexture("#1e293b", "#fef08a", 4, 2),
-      windowTower: this._makeWindowTexture("#0f172a", "#fde68a", 6, 10)
+      wallPlaster: this._makePlasterTexture(),
+      industrialMetal: this._makeCorrugatedMetalTexture(),
+      windowHouse: houseWin.diffuse,
+      windowHouseEmissive: houseWin.emissive,
+      windowTower: towerWin.diffuse,
+      windowTowerEmissive: towerWin.emissive
     };
   }
 
   static _makeGrassSoilTexture() {
     const canvas = document.createElement("canvas");
-    canvas.width = 256;
-    canvas.height = 256;
+    canvas.width = 512;
+    canvas.height = 512;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#b8c99a";
-    ctx.fillRect(0, 0, 256, 256);
+    ctx.fillStyle = "#9db578";
+    ctx.fillRect(0, 0, 512, 512);
 
-    // Bercak tanah & serat rumput berlapis
-    for (let i = 0; i < 4800; i++) {
-      const x = Math.random() * 256;
-      const y = Math.random() * 256;
+    for (let i = 0; i < 16000; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 512;
       const r = Math.random();
-      if (r < 0.45) {
-        ctx.fillStyle = "rgba(74, 124, 42, 0.26)";
+      if (r < 0.42) {
+        ctx.fillStyle = "rgba(63, 98, 18, 0.25)";
+        ctx.fillRect(x, y, 2, 6);
+      } else if (r < 0.78) {
+        ctx.fillStyle = "rgba(132, 169, 76, 0.24)";
         ctx.fillRect(x, y, 2, 5);
-      } else if (r < 0.8) {
-        ctx.fillStyle = "rgba(163, 198, 92, 0.24)";
-        ctx.fillRect(x, y, 2, 4);
       } else {
-        ctx.fillStyle = "rgba(101, 78, 52, 0.22)";
+        ctx.fillStyle = "rgba(92, 71, 48, 0.2)";
         ctx.fillRect(x, y, 3, 3);
       }
     }
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(36, 36);
+    tex.repeat.set(42, 42);
     return tex;
   }
 
   static _makeRockTexture() {
     const canvas = document.createElement("canvas");
-    canvas.width = 256;
-    canvas.height = 256;
+    canvas.width = 512;
+    canvas.height = 512;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#808080";
-    ctx.fillRect(0, 0, 256, 256);
+    ctx.fillStyle = "#787c82";
+    ctx.fillRect(0, 0, 512, 512);
 
-    for (let i = 0; i < 3200; i++) {
-      const v = 90 + Math.floor(Math.random() * 75);
-      ctx.fillStyle = `rgb(${v},${v},${v})`;
-      ctx.fillRect(Math.random() * 256, Math.random() * 256, 4, 2);
+    for (let i = 0; i < 9000; i++) {
+      const v = 85 + Math.floor(Math.random() * 80);
+      ctx.fillStyle = `rgb(${v},${v},${v + 3})`;
+      ctx.fillRect(Math.random() * 512, Math.random() * 512, 5, 2);
     }
-    ctx.strokeStyle = "rgba(30, 30, 35, 0.35)";
-    ctx.lineWidth = 1.5;
-    for (let i = 0; i < 45; i++) {
+    ctx.strokeStyle = "rgba(25, 28, 34, 0.36)";
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 90; i++) {
       ctx.beginPath();
-      const sx = Math.random() * 256;
-      const sy = Math.random() * 256;
+      const sx = Math.random() * 512;
+      const sy = Math.random() * 512;
       ctx.moveTo(sx, sy);
-      ctx.lineTo(sx + (Math.random() - 0.5) * 45, sy + (Math.random() - 0.5) * 35);
+      ctx.lineTo(sx + (Math.random() - 0.5) * 65, sy + (Math.random() - 0.5) * 45);
       ctx.stroke();
     }
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(28, 28);
+    tex.repeat.set(30, 30);
     return tex;
   }
 
-  static _makeAsphaltTexture() {
+  // Tekstur Daun Organik Alpha-Cutout (Bukan Bola Poligon!)
+  static _makeBotanicalLeafAlpha(darkHex, midHex, tipHex) {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
     canvas.height = 256;
     const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, 256, 256);
+
+    // Ranting kayu tipis di bagian bawah kluster
+    ctx.strokeStyle = "#4a3525";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(128, 248);
+    ctx.quadraticCurveTo(124, 185, 95, 135);
+    ctx.moveTo(128, 225);
+    ctx.quadraticCurveTo(136, 175, 165, 130);
+    ctx.moveTo(128, 210);
+    ctx.lineTo(128, 105);
+    ctx.stroke();
+
+    const palette = [darkHex, midHex, tipHex, "#15803d", "#4d7c0f"];
+    for (let i = 0; i < 68; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const rad = Math.pow(Math.random(), 0.62) * 86;
+      const lx = 128 + Math.cos(angle) * rad;
+      const ly = 122 + Math.sin(angle) * rad * 0.88;
+      const rot = angle + (Math.random() - 0.5) * 1.1;
+      const len = 18 + Math.random() * 14;
+      const wid = 8 + Math.random() * 6;
+
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(rot);
+      ctx.fillStyle = palette[i % palette.length];
+      ctx.beginPath();
+      ctx.moveTo(0, -len * 0.5);
+      ctx.quadraticCurveTo(wid, 0, 0, len * 0.5);
+      ctx.quadraticCurveTo(-wid, 0, 0, -len * 0.5);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(255,255,255,0.14)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, -len * 0.35);
+      ctx.lineTo(0, len * 0.35);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    return tex;
+  }
+
+  static _makePineNeedleAlpha() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, 256, 256);
+
+    const cols = ["#064e3b", "#0f766e", "#115e59", "#15803d"];
+    for (let i = 0; i < 85; i++) {
+      const t = Math.random();
+      const spread = 16 + t * 92;
+      const lx = 128 + (Math.random() - 0.5) * spread * 2;
+      const ly = 28 + t * 195;
+      const rot = ((lx - 128) / 110) * 0.9 + (Math.random() - 0.5) * 0.5;
+
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(rot);
+      ctx.strokeStyle = cols[i % cols.length];
+      ctx.lineWidth = 3.2;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, 24);
+      ctx.moveTo(0, 8);
+      ctx.lineTo(-9, 20);
+      ctx.moveTo(0, 8);
+      ctx.lineTo(9, 20);
+      ctx.stroke();
+      ctx.restore();
+    }
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  static _makePalmFrondAlpha() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, 256, 256);
+
+    // Pelepah melengkung + helai daun kelapa menyirip
+    ctx.strokeStyle = "#4d7c0f";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(18, 128);
+    ctx.quadraticCurveTo(130, 82, 244, 156);
+    ctx.stroke();
+
+    for (let x = 32; x <= 232; x += 9) {
+      const t = (x - 18) / 226;
+      const spineY = (1 - t) * (1 - t) * 128 + 2 * (1 - t) * t * 82 + t * t * 156;
+      const bladeLen = Math.sin(t * Math.PI) * 56 + 12;
+
+      ctx.strokeStyle = t > 0.65 ? "#65a30d" : "#15803d";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x, spineY);
+      ctx.quadraticCurveTo(x + 8, spineY - bladeLen * 0.6, x + 16, spineY - bladeLen);
+      ctx.moveTo(x, spineY);
+      ctx.quadraticCurveTo(x + 8, spineY + bladeLen * 0.6, x + 16, spineY + bladeLen);
+      ctx.stroke();
+    }
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  // Tekstur Helai Rumput Lancip Alpha-Cutout (Bukan Kotak Persegi!)
+  static _makeGrassBladeAlpha() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, 256, 256);
+
+    const greens = ["#3f6212", "#4d7c0f", "#65a30d", "#84cc16"];
+    for (let i = 0; i < 24; i++) {
+      const baseX = 28 + (i / 23) * 200 + (Math.random() - 0.5) * 10;
+      const tipX = baseX + (Math.random() - 0.5) * 44;
+      const tipY = 26 + Math.random() * 75;
+      const ctrlX = (baseX + tipX) * 0.5 + (Math.random() - 0.5) * 22;
+
+      ctx.fillStyle = greens[i % greens.length];
+      ctx.beginPath();
+      ctx.moveTo(baseX - 4, 256);
+      ctx.quadraticCurveTo(ctrlX - 2, (256 + tipY) * 0.5, tipX, tipY);
+      ctx.quadraticCurveTo(ctrlX + 2, (256 + tipY) * 0.5, baseX + 4, 256);
+      ctx.closePath();
+      ctx.fill();
+    }
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  static _makeAsphaltTexture() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#1e293b";
-    ctx.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 6500; i++) {
-      const shade = 20 + Math.floor(Math.random() * 30);
+    ctx.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 18000; i++) {
+      const shade = 22 + Math.floor(Math.random() * 28);
       ctx.fillStyle = `rgb(${shade},${shade + 4},${shade + 9})`;
-      ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+      ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
     }
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping;
@@ -93,18 +248,18 @@ class ProceduralHDTextures {
 
   static _makeBikeLaneTexture() {
     const canvas = document.createElement("canvas");
-    canvas.width = 128;
-    canvas.height = 128;
+    canvas.width = 256;
+    canvas.height = 256;
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#15803d";
-    ctx.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < 1800; i++) {
-      ctx.fillStyle = Math.random() > 0.5 ? "rgba(22,101,52,0.4)" : "rgba(74,222,128,0.18)";
-      ctx.fillRect(Math.random() * 128, Math.random() * 128, 2, 2);
+    ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 4000; i++) {
+      ctx.fillStyle = Math.random() > 0.5 ? "rgba(22,101,52,0.42)" : "rgba(74,222,128,0.18)";
+      ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
     }
     ctx.fillStyle = "#f8fafc";
-    ctx.fillRect(6, 0, 6, 128);
-    ctx.fillRect(116, 0, 6, 128);
+    ctx.fillRect(10, 0, 10, 256);
+    ctx.fillRect(236, 0, 10, 256);
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
@@ -113,15 +268,15 @@ class ProceduralHDTextures {
 
   static _makePavingTexture() {
     const canvas = document.createElement("canvas");
-    canvas.width = 128;
-    canvas.height = 128;
+    canvas.width = 256;
+    canvas.height = 256;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#94a3b8";
-    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = "#64748b";
+    ctx.fillRect(0, 0, 256, 256);
     const tones = ["#cbd5e1", "#e2e8f0", "#b45309", "#94a3b8"];
-    for (let y = 0; y < 128; y += 16) {
+    for (let y = 0; y < 256; y += 16) {
       const offset = (y / 16) % 2 === 0 ? 0 : 8;
-      for (let x = -8; x < 128; x += 16) {
+      for (let x = -8; x < 256; x += 16) {
         ctx.fillStyle = tones[(Math.abs(x + y) / 16) % tones.length];
         ctx.fillRect(x + offset + 1, y + 1, 14, 14);
       }
@@ -134,18 +289,52 @@ class ProceduralHDTextures {
 
   static _makeRoofTileTexture() {
     const canvas = document.createElement("canvas");
-    canvas.width = 128;
-    canvas.height = 128;
+    canvas.width = 256;
+    canvas.height = 256;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#b45309";
-    ctx.fillRect(0, 0, 128, 128);
-    for (let y = 0; y < 128; y += 16) {
-      ctx.fillStyle = "rgba(69, 26, 3, 0.35)";
-      ctx.fillRect(0, y + 12, 128, 4);
-      for (let x = 0; x < 128; x += 16) {
-        ctx.fillStyle = "rgba(251, 191, 36, 0.14)";
-        ctx.fillRect(x + 2, y + 2, 10, 8);
+    ctx.fillStyle = "#9a3412";
+    ctx.fillRect(0, 0, 256, 256);
+    for (let y = 0; y < 256; y += 16) {
+      ctx.fillStyle = "rgba(41, 15, 4, 0.48)";
+      ctx.fillRect(0, y + 12, 256, 4);
+      for (let x = 0; x < 256; x += 16) {
+        ctx.fillStyle = "rgba(251, 146, 60, 0.22)";
+        ctx.fillRect(x + 2, y + 2, 11, 9);
       }
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(3, 3);
+    return tex;
+  }
+
+  static _makePlasterTexture() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 5000; i++) {
+      const v = 232 + Math.floor(Math.random() * 20);
+      ctx.fillStyle = `rgb(${v},${v - 2},${v - 6})`;
+      ctx.fillRect(Math.random() * 256, Math.random() * 256, 3, 3);
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  static _makeCorrugatedMetalTexture() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext("2d");
+    for (let x = 0; x < 256; x += 8) {
+      ctx.fillStyle = (x / 8) % 2 === 0 ? "#94a3b8" : "#64748b";
+      ctx.fillRect(x, 0, 8, 256);
     }
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping;
@@ -154,26 +343,58 @@ class ProceduralHDTextures {
     return tex;
   }
 
-  static _makeWindowTexture(bgHex, glowHex, cols, rows) {
-    const canvas = document.createElement("canvas");
-    canvas.width = 128;
-    canvas.height = 128;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = bgHex;
-    ctx.fillRect(0, 0, 128, 128);
+  static _makeWindowPair(frameHex, warmHex, cols, rows, litRatio) {
+    const dCanvas = document.createElement("canvas");
+    dCanvas.width = 512;
+    dCanvas.height = 512;
+    const dCtx = dCanvas.getContext("2d");
 
-    const padX = 128 / cols;
-    const padY = 128 / rows;
+    const eCanvas = document.createElement("canvas");
+    eCanvas.width = 512;
+    eCanvas.height = 512;
+    const eCtx = eCanvas.getContext("2d");
+
+    dCtx.fillStyle = frameHex;
+    dCtx.fillRect(0, 0, 512, 512);
+    eCtx.fillStyle = "#000000";
+    eCtx.fillRect(0, 0, 512, 512);
+
+    const padX = 512 / cols;
+    const padY = 512 / rows;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        ctx.fillStyle = Math.random() > 0.25 ? glowHex : "#334155";
-        ctx.fillRect(c * padX + padX * 0.22, r * padY + padY * 0.22, padX * 0.56, padY * 0.56);
+        const wx = c * padX + padX * 0.16;
+        const wy = r * padY + padY * 0.18;
+        const ww = padX * 0.68;
+        const wh = padY * 0.64;
+
+        // Kaca siang dengan pantulan langit & kusen tengah
+        const grad = dCtx.createLinearGradient(wx, wy, wx, wy + wh);
+        grad.addColorStop(0, "#38bdf8");
+        grad.addColorStop(0.55, "#0f172a");
+        grad.addColorStop(1, "#1e293b");
+        dCtx.fillStyle = grad;
+        dCtx.fillRect(wx, wy, ww, wh);
+
+        dCtx.fillStyle = "rgba(255,255,255,0.28)";
+        dCtx.fillRect(wx + ww * 0.48, wy, 2, wh);
+
+        // Pencahayaan malam bervariasi organik (sebagian hangat, sebagian putih, sebagian gelap)
+        if (Math.random() < litRatio) {
+          const glowCol = Math.random() > 0.28 ? warmHex : "#e0f2fe";
+          eCtx.fillStyle = glowCol;
+          eCtx.fillRect(wx + 2, wy + 2, ww - 4, wh - 4);
+        }
       }
     }
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    return tex;
+
+    const diffuse = new THREE.CanvasTexture(dCanvas);
+    const emissive = new THREE.CanvasTexture(eCanvas);
+    diffuse.wrapS = THREE.RepeatWrapping;
+    diffuse.wrapT = THREE.RepeatWrapping;
+    emissive.wrapS = THREE.RepeatWrapping;
+    emissive.wrapT = THREE.RepeatWrapping;
+    return { diffuse, emissive };
   }
 }
 
@@ -192,7 +413,7 @@ class NusantaraGraphicsHD {
     this.windUniform = { value: 0 };
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.8, 780);
+    this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.8, 820);
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -206,11 +427,10 @@ class NusantaraGraphicsHD {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
 
-    // Kontrol Kamera Raycast Ground-Lock
     this.camTarget = new THREE.Vector3(0, 1.8, 0);
     this.camTargetGoal = new THREE.Vector3(0, 1.8, 0);
-    this.camRadius = 74;
-    this.camRadiusGoal = 74;
+    this.camRadius = 72;
+    this.camRadiusGoal = 72;
     this.camTheta = Math.PI * 0.25;
     this.camThetaGoal = Math.PI * 0.25;
     this.camPhi = 0.68;
@@ -225,17 +445,18 @@ class NusantaraGraphicsHD {
     this.highwayGroup = new THREE.Group();
     this.scene.add(this.highwayGroup);
 
-    // Koleksi Vegetasi Realistis
     this.broadleafData = [];
     this.pineData = [];
+    this.palmData = [];
     this.grassData = [];
-    this.maxBroadleaf = 950;
-    this.maxPines = 550;
-    this.maxGrass = 3600;
+    this.maxBroadleaf = 920;
+    this.maxPines = 520;
+    this.maxPalms = 260;
+    this.maxGrass = 3800;
 
     this._setupLights();
-    this._setupWaterShader();
     this._setupTerrainMesh();
+    this._setupWaterShader();
     this._setupGridHelper();
     this._setupRealisticVegetation();
     this._setupFallingLeaves();
@@ -246,10 +467,10 @@ class NusantaraGraphicsHD {
   }
 
   _setupLights() {
-    this.hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x3f6212, 0.8);
+    this.hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x3f6212, 0.82);
     this.scene.add(this.hemiLight);
 
-    this.sunLight = new THREE.DirectionalLight(0xfffbeb, 1.68);
+    this.sunLight = new THREE.DirectionalLight(0xfffbeb, 1.7);
     this.sunLight.position.set(85, 130, 65);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.width = 2048;
@@ -263,60 +484,6 @@ class NusantaraGraphicsHD {
     this.sunLight.shadow.camera.bottom = -d;
     this.sunLight.shadow.bias = -0.0005;
     this.scene.add(this.sunLight);
-  }
-
-  _setupWaterShader() {
-    const waterGeo = new THREE.PlaneGeometry(this.worldSize, this.worldSize, 96, 96);
-    waterGeo.rotateX(-Math.PI / 2);
-
-    this.waterUniforms = {
-      uTime: { value: 0 },
-      uSunDir: { value: new THREE.Vector3(0.5, 0.8, 0.4).normalize() },
-      uShallowColor: { value: new THREE.Color(0x0ea5e9) },
-      uDeepColor: { value: new THREE.Color(0x0369a1) },
-      uSkyColor: { value: new THREE.Color(0xe0f2fe) }
-    };
-
-    const waterMat = new THREE.ShaderMaterial({
-      uniforms: this.waterUniforms,
-      transparent: true,
-      vertexShader: `
-        uniform float uTime;
-        varying vec3 vWorldPos;
-        varying vec3 vNormal;
-        void main() {
-          vec3 pos = position;
-          float w1 = sin(pos.x * 0.35 + uTime * 1.7) * 0.08;
-          float w2 = cos(pos.z * 0.42 + uTime * 1.3) * 0.08;
-          pos.y += w1 + w2;
-          vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
-          vWorldPos = worldPosition.xyz;
-          vNormal = normalize(vec3(-cos(pos.x * 0.35 + uTime * 1.7) * 0.06, 1.0, sin(pos.z * 0.42 + uTime * 1.3) * 0.06));
-          gl_Position = projectionMatrix * viewMatrix * worldPosition;
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 uSunDir;
-        uniform vec3 uShallowColor;
-        uniform vec3 uDeepColor;
-        uniform vec3 uSkyColor;
-        varying vec3 vWorldPos;
-        varying vec3 vNormal;
-        void main() {
-          vec3 viewDir = normalize(cameraPosition - vWorldPos);
-          float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 3.0);
-          vec3 halfVec = normalize(uSunDir + viewDir);
-          float spec = pow(max(dot(vNormal, halfVec), 0.0), 72.0) * 0.9;
-          vec3 col = mix(uDeepColor, uShallowColor, 0.55);
-          col = mix(col, uSkyColor, fresnel * 0.58) + vec3(spec);
-          gl_FragColor = vec4(col, 0.88);
-        }
-      `
-    });
-
-    this.waterMesh = new THREE.Mesh(waterGeo, waterMat);
-    this.waterMesh.position.y = 0.0;
-    this.scene.add(this.waterMesh);
   }
 
   _setupTerrainMesh() {
@@ -336,7 +503,7 @@ class NusantaraGraphicsHD {
       vertexColors: true,
       map: this.textures.grassDetail,
       bumpMap: this.textures.rockDetail,
-      bumpScale: 0.38,
+      bumpScale: 0.42,
       roughness: 0.9,
       metalness: 0.02
     });
@@ -345,6 +512,111 @@ class NusantaraGraphicsHD {
     this.terrainMesh.receiveShadow = true;
     this.terrainMesh.castShadow = true;
     this.scene.add(this.terrainMesh);
+  }
+
+  _setupWaterShader() {
+    const dim = this.gridSegments + 1;
+    this.waterDepthData = new Uint8Array(dim * dim * 4);
+    this.waterDepthTex = new THREE.DataTexture(this.waterDepthData, dim, dim, THREE.RGBAFormat);
+    this.waterDepthTex.minFilter = THREE.LinearFilter;
+    this.waterDepthTex.magFilter = THREE.LinearFilter;
+    this.waterDepthTex.needsUpdate = true;
+
+    const waterGeo = new THREE.PlaneGeometry(this.worldSize, this.worldSize, 128, 128);
+    waterGeo.rotateX(-Math.PI / 2);
+
+    this.waterUniforms = {
+      uTime: { value: 0 },
+      uDepthTex: { value: this.waterDepthTex },
+      uSunDir: { value: new THREE.Vector3(0.5, 0.8, 0.4).normalize() },
+      uShallowColor: { value: new THREE.Color(0x14b8a6) },
+      uDeepColor: { value: new THREE.Color(0x0c4a6e) },
+      uSkyColor: { value: new THREE.Color(0xe0f2fe) }
+    };
+
+    const waterMat = new THREE.ShaderMaterial({
+      uniforms: this.waterUniforms,
+      transparent: true,
+      depthWrite: false,
+      vertexShader: `
+        uniform float uTime;
+        varying vec3 vWorldPos;
+        varying vec2 vWaterUv;
+        varying vec3 vNormal;
+        void main() {
+          vWaterUv = vec2(uv.x, 1.0 - uv.y);
+          vec3 pos = position;
+          float w1 = sin(pos.x * 0.45 + uTime * 1.9) * 0.05;
+          float w2 = cos(pos.z * 0.52 + uTime * 1.5) * 0.05;
+          pos.y += w1 + w2;
+          vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
+          vWorldPos = worldPosition.xyz;
+          vNormal = normalize(vec3(
+            -cos(pos.x * 0.45 + uTime * 1.9) * 0.055,
+            1.0,
+            sin(pos.z * 0.52 + uTime * 1.5) * 0.055
+          ));
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform sampler2D uDepthTex;
+        uniform vec3 uSunDir;
+        uniform vec3 uShallowColor;
+        uniform vec3 uDeepColor;
+        uniform vec3 uSkyColor;
+        varying vec3 vWorldPos;
+        varying vec2 vWaterUv;
+        varying vec3 vNormal;
+        void main() {
+          float depthRaw = texture2D(uDepthTex, vWaterUv).r;
+          if (depthRaw <= 0.01) discard;
+          float depthMeters = depthRaw * 8.0;
+
+          // Riak gelombang berlapis
+          float r1 = sin(vWorldPos.x * 1.3 + vWorldPos.z * 0.9 + uTime * 2.4);
+          float r2 = cos(vWorldPos.x * 0.8 - vWorldPos.z * 1.5 + uTime * 1.9);
+          vec3 rippleNorm = normalize(vNormal + vec3(r1 * 0.08, 0.0, r2 * 0.08));
+
+          vec3 viewDir = normalize(cameraPosition - vWorldPos);
+          float fresnel = pow(1.0 - max(dot(viewDir, rippleNorm), 0.0), 3.2);
+          vec3 halfVec = normalize(uSunDir + viewDir);
+          float spec = pow(max(dot(rippleNorm, halfVec), 0.0), 96.0) * 1.1;
+
+          float depthMix = clamp(depthMeters / 3.2, 0.0, 1.0);
+          vec3 waterCol = mix(uShallowColor, uDeepColor, depthMix);
+          waterCol = mix(waterCol, uSkyColor, fresnel * 0.52) + vec3(spec);
+
+          // Buih ombak putih di tepian dangkal sungai & pantai
+          float shoreWave = sin(depthMeters * 14.0 - uTime * 3.2 + r1 * 1.5);
+          float foamMask = smoothstep(0.85, 0.08, depthMeters) * smoothstep(0.35, 0.85, shoreWave);
+          waterCol = mix(waterCol, vec3(0.95, 0.98, 1.0), foamMask * 0.72);
+
+          float alpha = clamp(0.45 + depthMeters * 0.45, 0.45, 0.92);
+          gl_FragColor = vec4(waterCol, alpha);
+        }
+      `
+    });
+
+    this.waterMesh = new THREE.Mesh(waterGeo, waterMat);
+    this.waterMesh.position.y = 0.0;
+    this.scene.add(this.waterMesh);
+  }
+
+  _updateWaterDepthTexture() {
+    if (!this.terrainGeo || !this.waterDepthData) return;
+    const pos = this.terrainGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i);
+      const depth = Math.max(0, 0.08 - y);
+      const encoded = Math.min(255, Math.floor((depth / 8.0) * 255));
+      this.waterDepthData[i * 4] = encoded;
+      this.waterDepthData[i * 4 + 1] = encoded;
+      this.waterDepthData[i * 4 + 2] = encoded;
+      this.waterDepthData[i * 4 + 3] = 255;
+    }
+    this.waterDepthTex.needsUpdate = true;
   }
 
   _setupGridHelper() {
@@ -374,8 +646,8 @@ class NusantaraGraphicsHD {
         #else
           vec3 wOffset = vec3(0.0);
         #endif
-        float gust = sin(uWindTime * 2.1 + wOffset.x * 0.25 + wOffset.z * 0.22) * 0.65
-                   + cos(uWindTime * 3.4 + wOffset.z * 0.4) * 0.35;
+        float gust = sin(uWindTime * 2.0 + wOffset.x * 0.25 + wOffset.z * 0.22) * 0.65
+                   + cos(uWindTime * 3.1 + wOffset.z * 0.4) * 0.35;
         transformed.x += gust * ${swayStrength.toFixed(3)} * hFactor;
         transformed.z += gust * ${(swayStrength * 0.55).toFixed(3)} * hFactor;
         `
@@ -383,101 +655,161 @@ class NusantaraGraphicsHD {
     };
   }
 
-  _setupRealisticVegetation() {
-    // 1. POHON RINDANG ORGANIK (Trembesi / Mahoni: Batang bercabang + 4 kluster daun bulat berlapis)
-    const trunkGeo = new THREE.CylinderGeometry(0.16, 0.32, 2.1, 7);
-    trunkGeo.translate(0, 1.05, 0);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3525, roughness: 0.94 });
-
-    const leafMatMain = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.84 });
-    const leafMatTop = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.78 });
-    const leafMatShade = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.88 });
-    this._applyWindShader(leafMatMain, 0.14);
-    this._applyWindShader(leafMatTop, 0.18);
-    this._applyWindShader(leafMatShade, 0.12);
-
-    const canopyCenterGeo = new THREE.IcosahedronGeometry(1.38, 1);
-    canopyCenterGeo.scale(1.15, 0.78, 1.15);
-    canopyCenterGeo.translate(0, 2.95, 0);
-
-    const canopyTopGeo = new THREE.IcosahedronGeometry(1.05, 1);
-    canopyTopGeo.scale(1.1, 0.72, 1.1);
-    canopyTopGeo.translate(0.18, 3.65, -0.12);
-
-    const canopySideGeo = new THREE.IcosahedronGeometry(1.12, 1);
-    canopySideGeo.scale(1.18, 0.72, 1.05);
-    canopySideGeo.translate(-0.62, 2.55, 0.42);
-
-    this.blTrunks = new THREE.InstancedMesh(trunkGeo, trunkMat, this.maxBroadleaf);
-    this.blCanopy1 = new THREE.InstancedMesh(canopyCenterGeo, leafMatMain, this.maxBroadleaf);
-    this.blCanopy2 = new THREE.InstancedMesh(canopyTopGeo, leafMatTop, this.maxBroadleaf);
-    this.blCanopy3 = new THREE.InstancedMesh(canopySideGeo, leafMatShade, this.maxBroadleaf);
-
-    [this.blCanopy1, this.blCanopy2].forEach((m) => {
-      m.castShadow = true;
-      m.receiveShadow = true;
-    });
-    this.scene.add(this.blTrunks, this.blCanopy1, this.blCanopy2, this.blCanopy3);
-
-    // 2. POHON CEMARA / PINUS PEGUNUNGAN (Khusus lereng tinggi)
-    const pineTrunkGeo = new THREE.CylinderGeometry(0.11, 0.22, 1.8, 6);
-    pineTrunkGeo.translate(0, 0.9, 0);
-    const pineFoliageGeo = new THREE.DodecahedronGeometry(1.05, 0);
-    pineFoliageGeo.scale(0.95, 1.85, 0.95);
-    pineFoliageGeo.translate(0, 2.6, 0);
-    const pineMat = new THREE.MeshStandardMaterial({ color: 0x134e4a, roughness: 0.85 });
-    this._applyWindShader(pineMat, 0.11);
-
-    this.pineTrunks = new THREE.InstancedMesh(pineTrunkGeo, trunkMat, this.maxPines);
-    this.pineCrowns = new THREE.InstancedMesh(pineFoliageGeo, pineMat, this.maxPines);
-    this.pineCrowns.castShadow = true;
-    this.scene.add(this.pineTrunks, this.pineCrowns);
-
-    // 3. RUMPUN RUMPUT LIAR & ILALANG BERGOYANG (3.600 rumpun)
-    const blade1 = new THREE.PlaneGeometry(0.75, 0.55);
-    blade1.translate(0, 0.26, 0);
-    const blade2 = blade1.clone();
-    blade2.rotateY(Math.PI / 3);
-    const blade3 = blade1.clone();
-    blade3.rotateY(-Math.PI / 3);
-
-    const grassGeo = this._mergeSimplePlanes([blade1, blade2, blade3]);
-    const grassMat = new THREE.MeshStandardMaterial({
-      color: 0x4d7c0f,
-      side: THREE.DoubleSide,
-      roughness: 0.85
-    });
-    this._applyWindShader(grassMat, 0.26);
-
-    this.grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, this.maxGrass);
-    this.scene.add(this.grassMesh);
-  }
-
-  _mergeSimplePlanes(geos) {
+  _mergeBufferGeometries(geos) {
     const merged = new THREE.BufferGeometry();
     const posArr = [];
     const normArr = [];
+    const uvArr = [];
     const idxArr = [];
     let vertOffset = 0;
 
     geos.forEach((g) => {
       const p = g.attributes.position.array;
       const n = g.attributes.normal.array;
+      const u = g.attributes.uv ? g.attributes.uv.array : null;
       const idx = g.index.array;
       for (let i = 0; i < p.length; i++) posArr.push(p[i]);
       for (let i = 0; i < n.length; i++) normArr.push(n[i]);
+      if (u) {
+        for (let i = 0; i < u.length; i++) uvArr.push(u[i]);
+      } else {
+        for (let i = 0; i < (p.length / 3) * 2; i++) uvArr.push(0);
+      }
       for (let i = 0; i < idx.length; i++) idxArr.push(idx[i] + vertOffset);
       vertOffset += p.length / 3;
     });
 
     merged.setAttribute("position", new THREE.Float32BufferAttribute(posArr, 3));
     merged.setAttribute("normal", new THREE.Float32BufferAttribute(normArr, 3));
+    merged.setAttribute("uv", new THREE.Float32BufferAttribute(uvArr, 2));
     merged.setIndex(idxArr);
     return merged;
   }
 
+  _setupRealisticVegetation() {
+    const barkMat = new THREE.MeshStandardMaterial({ color: 0x4a3525, roughness: 0.95 });
+
+    // 1. POHON RINDANG REALISTIS (Batang Bercabang 3 + 12 Kluster Daun Alpha-Cutout)
+    const mainTrunk = new THREE.CylinderGeometry(0.14, 0.28, 2.2, 7);
+    mainTrunk.translate(0, 1.1, 0);
+    const branch1 = new THREE.CylinderGeometry(0.07, 0.13, 1.45, 6);
+    branch1.rotateZ(0.48);
+    branch1.translate(-0.42, 2.45, 0.12);
+    const branch2 = new THREE.CylinderGeometry(0.07, 0.13, 1.45, 6);
+    branch2.rotateZ(-0.46);
+    branch2.rotateX(0.28);
+    branch2.translate(0.42, 2.45, -0.15);
+    const branch3 = new THREE.CylinderGeometry(0.07, 0.12, 1.35, 6);
+    branch3.rotateX(-0.45);
+    branch3.translate(0.05, 2.55, 0.42);
+    const blTrunkGeo = this._mergeBufferGeometries([mainTrunk, branch1, branch2, branch3]);
+
+    const leafCards = [];
+    const cardOffsets = [
+      [0, 3.25, 0, 0, 0.1, 2.5],
+      [0, 3.25, 0, Math.PI / 2, -0.1, 2.5],
+      [-0.75, 2.75, 0.25, 0.4, 0.35, 2.1],
+      [-0.75, 2.75, 0.25, 1.95, -0.25, 2.1],
+      [0.75, 2.75, -0.22, -0.4, -0.35, 2.1],
+      [0.75, 2.75, -0.22, 1.15, 0.25, 2.1],
+      [0.1, 2.85, 0.72, 0.8, 0.3, 2.05],
+      [0.1, 2.85, -0.72, -0.8, -0.3, 2.05],
+      [0, 3.85, 0, 0.6, 0.15, 1.85],
+      [0, 3.85, 0, 2.15, -0.15, 1.85]
+    ];
+    cardOffsets.forEach(([ox, oy, oz, ry, rx, sz]) => {
+      const p = new THREE.PlaneGeometry(sz, sz);
+      p.rotateX(rx);
+      p.rotateY(ry);
+      p.translate(ox, oy, oz);
+      leafCards.push(p);
+    });
+    const blFoliageGeo = this._mergeBufferGeometries(leafCards);
+    const blFoliageMat = new THREE.MeshStandardMaterial({
+      map: this.textures.treeLeafAlpha,
+      alphaTest: 0.42,
+      side: THREE.DoubleSide,
+      roughness: 0.82
+    });
+    this._applyWindShader(blFoliageMat, 0.16);
+
+    this.blTrunks = new THREE.InstancedMesh(blTrunkGeo, barkMat, this.maxBroadleaf);
+    this.blFoliage = new THREE.InstancedMesh(blFoliageGeo, blFoliageMat, this.maxBroadleaf);
+    this.blFoliage.castShadow = true;
+    this.scene.add(this.blTrunks, this.blFoliage);
+
+    // 2. POHON CEMARA / PINUS PEGUNUNGAN (Jarum Alpha-Cutout Bertingkat)
+    const pineTrunkGeo = new THREE.CylinderGeometry(0.09, 0.22, 3.8, 6);
+    pineTrunkGeo.translate(0, 1.9, 0);
+    const pineCards = [];
+    for (let i = 0; i < 6; i++) {
+      const p = new THREE.PlaneGeometry(2.5, 3.4);
+      p.rotateY((i * Math.PI) / 3);
+      p.translate(0, 2.6, 0);
+      pineCards.push(p);
+    }
+    const pineFoliageGeo = this._mergeBufferGeometries(pineCards);
+    const pineMat = new THREE.MeshStandardMaterial({
+      map: this.textures.pineLeafAlpha,
+      alphaTest: 0.42,
+      side: THREE.DoubleSide,
+      roughness: 0.85
+    });
+    this._applyWindShader(pineMat, 0.12);
+
+    this.pineTrunks = new THREE.InstancedMesh(pineTrunkGeo, barkMat, this.maxPines);
+    this.pineFoliage = new THREE.InstancedMesh(pineFoliageGeo, pineMat, this.maxPines);
+    this.pineFoliage.castShadow = true;
+    this.scene.add(this.pineTrunks, this.pineFoliage);
+
+    // 3. POHON KELAPA PESISIR (Untuk Kota Pantai: Jakarta, Surabaya, Bali, Makassar)
+    const palmTrunkGeo = new THREE.CylinderGeometry(0.11, 0.2, 4.4, 7);
+    palmTrunkGeo.translate(0, 2.2, 0);
+    const palmCards = [];
+    for (let i = 0; i < 7; i++) {
+      const frond = new THREE.PlaneGeometry(2.4, 1.35);
+      frond.translate(1.15, 0, 0);
+      frond.rotateZ(-0.22 + (i % 2) * 0.14);
+      frond.rotateY((i * Math.PI * 2) / 7);
+      frond.translate(0, 4.35, 0);
+      palmCards.push(frond);
+    }
+    const palmFoliageGeo = this._mergeBufferGeometries(palmCards);
+    const palmMat = new THREE.MeshStandardMaterial({
+      map: this.textures.palmFrondAlpha,
+      alphaTest: 0.42,
+      side: THREE.DoubleSide,
+      roughness: 0.78
+    });
+    this._applyWindShader(palmMat, 0.24);
+
+    this.palmTrunks = new THREE.InstancedMesh(palmTrunkGeo, barkMat, this.maxPalms);
+    this.palmFoliage = new THREE.InstancedMesh(palmFoliageGeo, palmMat, this.maxPalms);
+    this.palmFoliage.castShadow = true;
+    this.scene.add(this.palmTrunks, this.palmFoliage);
+
+    // 4. RUMPUN RUMPUT HELAI ASLI (Alpha-Cutout Grass Blades, Bukan Persegi!)
+    const g1 = new THREE.PlaneGeometry(0.95, 0.65);
+    g1.translate(0, 0.31, 0);
+    const g2 = g1.clone();
+    g2.rotateY(Math.PI / 3);
+    const g3 = g1.clone();
+    g3.rotateY(-Math.PI / 3);
+    const grassGeo = this._mergeBufferGeometries([g1, g2, g3]);
+    const grassMat = new THREE.MeshStandardMaterial({
+      map: this.textures.grassTuftAlpha,
+      alphaTest: 0.45,
+      side: THREE.DoubleSide,
+      roughness: 0.88
+    });
+    this._applyWindShader(grassMat, 0.28);
+
+    this.grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, this.maxGrass);
+    this.scene.add(this.grassMesh);
+  }
+
   _setupFallingLeaves() {
-    this.leafCount = 220;
+    this.leafCount = 180;
     const leafGeo = new THREE.BufferGeometry();
     const positions = new Float32Array(this.leafCount * 3);
     this.leafVelocities = [];
@@ -487,7 +819,7 @@ class NusantaraGraphicsHD {
       positions[i * 3 + 1] = 2 + Math.random() * 14;
       positions[i * 3 + 2] = (Math.random() - 0.5) * 240;
       this.leafVelocities.push({
-        vy: 0.45 + Math.random() * 0.45,
+        vy: 0.42 + Math.random() * 0.4,
         phase: Math.random() * Math.PI * 2
       });
     }
@@ -495,7 +827,7 @@ class NusantaraGraphicsHD {
 
     const leafMat = new THREE.PointsMaterial({
       color: 0xa3e635,
-      size: 0.34,
+      size: 0.3,
       transparent: true,
       opacity: 0.85
     });
@@ -508,17 +840,17 @@ class NusantaraGraphicsHD {
     const pos = this.fallingLeaves.geometry.attributes.position;
     for (let i = 0; i < this.leafCount; i++) {
       const v = this.leafVelocities[i];
-      let x = pos.getX(i) + Math.sin(elapsed * 1.4 + v.phase) * 0.45 * delta;
+      let x = pos.getX(i) + Math.sin(elapsed * 1.3 + v.phase) * 0.42 * delta;
       let y = pos.getY(i) - v.vy * delta;
-      let z = pos.getZ(i) + Math.cos(elapsed * 1.1 + v.phase) * 0.35 * delta;
+      let z = pos.getZ(i) + Math.cos(elapsed * 1.0 + v.phase) * 0.32 * delta;
 
       const ground = this.getHeightAt(x, z);
       if (y <= Math.max(0.5, ground + 0.1)) {
         if (this.broadleafData.length > 0) {
           const anchor = this.broadleafData[Math.floor(Math.random() * this.broadleafData.length)];
-          x = anchor.x + (Math.random() - 0.5) * 4.0;
-          y = anchor.y + 3.2 + Math.random() * 1.5;
-          z = anchor.z + (Math.random() - 0.5) * 4.0;
+          x = anchor.x + (Math.random() - 0.5) * 3.5;
+          y = anchor.y + 3.0 + Math.random() * 1.4;
+          z = anchor.z + (Math.random() - 0.5) * 3.5;
         } else {
           y = ground + 5.0;
         }
@@ -543,14 +875,10 @@ class NusantaraGraphicsHD {
       }
       dummy.updateMatrix();
       this.blTrunks.setMatrixAt(i, dummy.matrix);
-      this.blCanopy1.setMatrixAt(i, dummy.matrix);
-      this.blCanopy2.setMatrixAt(i, dummy.matrix);
-      this.blCanopy3.setMatrixAt(i, dummy.matrix);
+      this.blFoliage.setMatrixAt(i, dummy.matrix);
     }
     this.blTrunks.instanceMatrix.needsUpdate = true;
-    this.blCanopy1.instanceMatrix.needsUpdate = true;
-    this.blCanopy2.instanceMatrix.needsUpdate = true;
-    this.blCanopy3.instanceMatrix.needsUpdate = true;
+    this.blFoliage.instanceMatrix.needsUpdate = true;
 
     for (let i = 0; i < this.maxPines; i++) {
       const p = this.pineData[i];
@@ -564,10 +892,27 @@ class NusantaraGraphicsHD {
       }
       dummy.updateMatrix();
       this.pineTrunks.setMatrixAt(i, dummy.matrix);
-      this.pineCrowns.setMatrixAt(i, dummy.matrix);
+      this.pineFoliage.setMatrixAt(i, dummy.matrix);
     }
     this.pineTrunks.instanceMatrix.needsUpdate = true;
-    this.pineCrowns.instanceMatrix.needsUpdate = true;
+    this.pineFoliage.instanceMatrix.needsUpdate = true;
+
+    for (let i = 0; i < this.maxPalms; i++) {
+      const p = this.palmData[i];
+      if (!p || !p.active) {
+        dummy.position.set(0, -100, 0);
+        dummy.scale.set(0, 0, 0);
+      } else {
+        dummy.position.set(p.x, p.y, p.z);
+        dummy.rotation.y = p.rot;
+        dummy.scale.set(p.scale, p.scale * p.stretch, p.scale);
+      }
+      dummy.updateMatrix();
+      this.palmTrunks.setMatrixAt(i, dummy.matrix);
+      this.palmFoliage.setMatrixAt(i, dummy.matrix);
+    }
+    this.palmTrunks.instanceMatrix.needsUpdate = true;
+    this.palmFoliage.instanceMatrix.needsUpdate = true;
 
     for (let i = 0; i < this.maxGrass; i++) {
       const g = this.grassData[i];
@@ -593,8 +938,8 @@ class NusantaraGraphicsHD {
       y,
       z,
       rot: Math.random() * Math.PI * 2,
-      scale: scaleOverride || (0.8 + Math.random() * 0.55),
-      stretch: 0.9 + Math.random() * 0.3
+      scale: scaleOverride || (0.85 + Math.random() * 0.5),
+      stretch: 0.92 + Math.random() * 0.25
     });
     this._syncVegetationInstances();
     return true;
@@ -602,27 +947,19 @@ class NusantaraGraphicsHD {
 
   clearVegetationNear(wx, wz, radius) {
     let changed = false;
-    for (let i = 0; i < this.broadleafData.length; i++) {
-      const t = this.broadleafData[i];
-      if (t.active && Math.hypot(t.x - wx, t.z - wz) < radius) {
-        t.active = false;
-        changed = true;
+    const clearList = (arr, extra = 0) => {
+      for (let i = 0; i < arr.length; i++) {
+        const item = arr[i];
+        if (item.active && Math.hypot(item.x - wx, item.z - wz) < radius + extra) {
+          item.active = false;
+          changed = true;
+        }
       }
-    }
-    for (let i = 0; i < this.pineData.length; i++) {
-      const p = this.pineData[i];
-      if (p.active && Math.hypot(p.x - wx, p.z - wz) < radius) {
-        p.active = false;
-        changed = true;
-      }
-    }
-    for (let i = 0; i < this.grassData.length; i++) {
-      const g = this.grassData[i];
-      if (g.active && Math.hypot(g.x - wx, g.z - wz) < radius + 0.5) {
-        g.active = false;
-        changed = true;
-      }
-    }
+    };
+    clearList(this.broadleafData, 0);
+    clearList(this.pineData, 0);
+    clearList(this.palmData, 0);
+    clearList(this.grassData, 0.5);
     if (changed) this._syncVegetationInstances();
   }
 
@@ -670,7 +1007,6 @@ class NusantaraGraphicsHD {
     roadMesh.receiveShadow = true;
     this.highwayGroup.add(roadMesh);
 
-    // Marka Kuning Ganda Median Tol
     const m1 = new THREE.Mesh(
       new THREE.BoxGeometry(isNS ? 0.16 : roadD, 0.2, isNS ? roadD : 0.16),
       yellowMat
@@ -685,7 +1021,6 @@ class NusantaraGraphicsHD {
     }
     this.highwayGroup.add(m1, m2);
 
-    // Gerbang Tol Nasional di atas daratan kering
     const gxWorld = -this.halfSize + (hw.gateGx + 0.5) * this.cellSize;
     const gzWorld = -this.halfSize + (hw.gateGz + 0.5) * this.cellSize;
     const gateGroup = new THREE.Group();
@@ -706,7 +1041,6 @@ class NusantaraGraphicsHD {
     if (!isNS) gateGroup.rotation.y = Math.PI / 2;
     this.highwayGroup.add(gateGroup);
 
-    // Lampu PJU sepanjang Jalan Tol
     const startSpan = isNS ? z0 + 6 : x0 + 6;
     const endSpan = isNS ? z1 - 6 : x1 - 6;
     for (let s = startSpan; s <= endSpan; s += 14) {
@@ -743,8 +1077,6 @@ class NusantaraGraphicsHD {
       const x = pos.getX(i);
       const z = pos.getZ(i);
       let h = window.generateRegionHeight(region, x, z, this.halfSize);
-
-      // Ratakan koridor akses Jalan Tol di daratan kering masing-masing daerah
       if (this._isInsideStarterHighwayCorridor(region, x, z)) {
         h = 1.68;
       }
@@ -752,6 +1084,7 @@ class NusantaraGraphicsHD {
     }
     pos.needsUpdate = true;
     this._recolorAndNormals();
+    this._updateWaterDepthTexture();
     this._buildStarterHighwayForRegion(region);
     this._populateInitialVegetation(region);
 
@@ -794,55 +1127,66 @@ class NusantaraGraphicsHD {
   _populateInitialVegetation(region) {
     this.broadleafData = [];
     this.pineData = [];
+    this.palmData = [];
     this.grassData = [];
 
+    const isCoastal = ["jakarta", "surabaya", "bali", "makassar"].includes(region.id);
     const pos = this.terrainGeo.attributes.position;
     const norm = this.terrainGeo.attributes.normal;
 
-    for (let i = 0; i < pos.count; i += 6) {
+    for (let i = 0; i < pos.count; i += 5) {
       const x = pos.getX(i);
       const y = pos.getY(i);
       const z = pos.getZ(i);
       const ny = norm.getY(i);
 
       if (this._isInsideStarterHighwayCorridor(region, x, z)) continue;
-      if (y <= 0.7 || ny <= 0.75) continue;
+      if (y <= 0.65 || ny <= 0.75) continue;
 
-      // Rumpun Rumput Liar & Ilalang di Lembah dan Tepian Sungai
-      if (y < 8.5 && this.grassData.length < this.maxGrass && Math.random() > 0.25) {
+      // Rumpun Rumput Helai Asli
+      if (y < 9.0 && this.grassData.length < this.maxGrass && Math.random() > 0.22) {
         this.grassData.push({
           active: true,
           x: x + (Math.random() - 0.5) * 1.9,
-          y: y - 0.02,
+          y: y - 0.03,
           z: z + (Math.random() - 0.5) * 1.9,
           rot: Math.random() * Math.PI * 2,
           scale: 0.75 + Math.random() * 0.75
         });
       }
 
-      // Pohon Rindang Organik di Lembah & Perbukitan Bawah
-      if (y >= 1.1 && y < 7.8 && this.broadleafData.length < 720 && Math.random() > 0.74) {
+      // Pohon Kelapa di zona pesisir rendah
+      if (isCoastal && y >= 0.75 && y < 2.2 && this.palmData.length < this.maxPalms && Math.random() > 0.72) {
+        this.palmData.push({
+          active: true,
+          x: x + (Math.random() - 0.5) * 1.8,
+          y,
+          z: z + (Math.random() - 0.5) * 1.8,
+          rot: Math.random() * Math.PI * 2,
+          scale: 0.85 + Math.random() * 0.45,
+          stretch: 0.9 + Math.random() * 0.3
+        });
+      } else if (y >= 1.1 && y < 8.0 && this.broadleafData.length < 720 && Math.random() > 0.75) {
+        // Pohon Rindang Bercabang di Lembah & Kota
         this.broadleafData.push({
           active: true,
           x: x + (Math.random() - 0.5) * 2.0,
           y,
           z: z + (Math.random() - 0.5) * 2.0,
           rot: Math.random() * Math.PI * 2,
-          scale: 0.75 + Math.random() * 0.65,
-          stretch: 0.88 + Math.random() * 0.35
+          scale: 0.8 + Math.random() * 0.55,
+          stretch: 0.9 + Math.random() * 0.28
         });
-      }
-
-      // Pohon Pinus / Cemara di Lereng Gunung Tinggi
-      if (y >= 7.8 && y < 18.5 && this.pineData.length < 480 && Math.random() > 0.65) {
+      } else if (y >= 8.0 && y < 19.0 && this.pineData.length < 480 && Math.random() > 0.66) {
+        // Pohon Pinus / Cemara di Lereng Gunung Tinggi
         this.pineData.push({
           active: true,
           x: x + (Math.random() - 0.5) * 1.8,
           y,
           z: z + (Math.random() - 0.5) * 1.8,
           rot: Math.random() * Math.PI * 2,
-          scale: 0.8 + Math.random() * 0.65,
-          stretch: 0.9 + Math.random() * 0.4
+          scale: 0.85 + Math.random() * 0.55,
+          stretch: 0.92 + Math.random() * 0.32
         });
       }
     }
@@ -871,7 +1215,7 @@ class NusantaraGraphicsHD {
     return y0 * (1 - tz) + y1 * tz;
   }
 
-  // Meratakan secara halus dasar tanah di bawah badan jalan agar tidak miring tajam/renggang
+  // Perataan badan jalan mulus (Smooth Roadbed Grading) agar jalan tidak pernah putus/tembus tanah
   gradeTerrainForCells(cells) {
     const step = this.worldSize / this.gridSegments;
     const stride = this.gridSegments + 1;
@@ -879,18 +1223,18 @@ class NusantaraGraphicsHD {
     let changed = false;
 
     cells.forEach((c) => {
-      if (c.groundY < 0.25) return; // Jangan ubah dasar sungai/laut
-      const minIx = Math.max(0, Math.floor((c.wx - 2.2 + this.halfSize) / step));
-      const maxIx = Math.min(this.gridSegments, Math.ceil((c.wx + 2.2 + this.halfSize) / step));
-      const minIz = Math.max(0, Math.floor((c.wz - 2.2 + this.halfSize) / step));
-      const maxIz = Math.min(this.gridSegments, Math.ceil((c.wz + 2.2 + this.halfSize) / step));
+      if (c.groundY < 0.25) return;
+      const minIx = Math.max(0, Math.floor((c.wx - 2.6 + this.halfSize) / step));
+      const maxIx = Math.min(this.gridSegments, Math.ceil((c.wx + 2.6 + this.halfSize) / step));
+      const minIz = Math.max(0, Math.floor((c.wz - 2.6 + this.halfSize) / step));
+      const maxIz = Math.min(this.gridSegments, Math.ceil((c.wz + 2.6 + this.halfSize) / step));
 
       for (let iz = minIz; iz <= maxIz; iz++) {
         for (let ix = minIx; ix <= maxIx; ix++) {
           const idx = iz * stride + ix;
           const vy = pos.getY(idx);
           if (vy >= 0.25) {
-            pos.setY(idx, vy + (c.groundY - vy) * 0.55);
+            pos.setY(idx, vy + (c.groundY - vy) * 0.72);
             changed = true;
           }
         }
@@ -900,6 +1244,7 @@ class NusantaraGraphicsHD {
     if (changed) {
       pos.needsUpdate = true;
       this._recolorAndNormals();
+      this._updateWaterDepthTexture();
     }
   }
 
@@ -944,6 +1289,7 @@ class NusantaraGraphicsHD {
     if (changed) {
       pos.needsUpdate = true;
       this._recolorAndNormals();
+      this._updateWaterDepthTexture();
     }
   }
 
@@ -963,23 +1309,23 @@ class NusantaraGraphicsHD {
     this.waterUniforms.uSunDir.value.copy(this.sunLight.position).normalize();
 
     if (isNight) {
-      this.sunLight.intensity = 0.28;
+      this.sunLight.intensity = 0.26;
       this.sunLight.color.setHex(0x60a5fa);
-      this.hemiLight.intensity = 0.38;
-      this.scene.background.setHex(0x090f1d);
-      if (this.scene.fog) this.scene.fog.color.setHex(0x090f1d);
+      this.hemiLight.intensity = 0.36;
+      this.scene.background.setHex(0x070d19);
+      if (this.scene.fog) this.scene.fog.color.setHex(0x070d19);
       this.waterUniforms.uSkyColor.value.setHex(0x0f172a);
     } else if (isGolden) {
-      this.sunLight.intensity = 1.45;
+      this.sunLight.intensity = 1.48;
       this.sunLight.color.setHex(0xfdba74);
       this.hemiLight.intensity = 0.68;
       this.scene.background.setHex(0xfed7aa);
       if (this.scene.fog) this.scene.fog.color.setHex(0xfed7aa);
       this.waterUniforms.uSkyColor.value.setHex(0xfdba74);
     } else {
-      this.sunLight.intensity = 1.68;
+      this.sunLight.intensity = 1.7;
       this.sunLight.color.setHex(0xfffbeb);
-      this.hemiLight.intensity = 0.8;
+      this.hemiLight.intensity = 0.82;
       const baseCol = this.currentRegion ? this.currentRegion.fogColor : 0xdbeafe;
       this.scene.background.setHex(baseCol);
       if (this.scene.fog) this.scene.fog.color.setHex(baseCol);
@@ -991,7 +1337,7 @@ class NusantaraGraphicsHD {
     });
 
     if (this.onAtmosphereChange) {
-      this.onAtmosphereChange(isNight);
+      this.onAtmosphereChange(isNight, isGolden);
     }
   }
 
@@ -1020,7 +1366,6 @@ class NusantaraGraphicsHD {
     return hits.length > 0 ? hits[0].point : null;
   }
 
-  // Raycast bidang datar untuk Kamera Ground-Lock agar menggeser ke belakang/samping 100% akurat
   _raycastGroundPlane(clientX, clientY, planeY) {
     const rect = this.canvas.getBoundingClientRect();
     const mouse = new THREE.Vector2(
@@ -1120,7 +1465,7 @@ class NusantaraGraphicsHD {
 
         if (lastPinchDist > 0) {
           const zoomDelta = (lastPinchDist - dist) * 0.24;
-          this.camRadiusGoal = Math.max(20, Math.min(220, this.camRadiusGoal + zoomDelta));
+          this.camRadiusGoal = Math.max(16, Math.min(220, this.camRadiusGoal + zoomDelta));
 
           let dAngle = angle - lastPinchAngle;
           if (dAngle > Math.PI) dAngle -= Math.PI * 2;
@@ -1128,7 +1473,7 @@ class NusantaraGraphicsHD {
           this.camThetaGoal += dAngle * 0.95;
 
           const dMidY = midY - lastPinchMidY;
-          this.camPhiGoal = Math.max(0.1, Math.min(1.18, this.camPhiGoal - dMidY * 0.0045));
+          this.camPhiGoal = Math.max(0.1, Math.min(1.22, this.camPhiGoal - dMidY * 0.0045));
         }
         lastPinchDist = dist;
         lastPinchAngle = angle;
@@ -1145,7 +1490,6 @@ class NusantaraGraphicsHD {
       lastPinchDist = 0;
     });
 
-    // Dukungan Mouse Desktop
     this.canvas.addEventListener("mousedown", (e) => {
       isOneFingerDown = true;
       lastMouseX = e.clientX;
@@ -1177,7 +1521,7 @@ class NusantaraGraphicsHD {
         }
       } else if (e.buttons === 2) {
         this.camThetaGoal += (e.clientX - lastMouseX) * 0.008;
-        this.camPhiGoal = Math.max(0.1, Math.min(1.18, this.camPhiGoal - (e.clientY - lastMouseY) * 0.006));
+        this.camPhiGoal = Math.max(0.1, Math.min(1.22, this.camPhiGoal - (e.clientY - lastMouseY) * 0.006));
       } else if (e.buttons === 1) {
         moveGroundLockPan(e.clientX, e.clientY);
       }
@@ -1195,7 +1539,7 @@ class NusantaraGraphicsHD {
 
     this.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     this.canvas.addEventListener("wheel", (e) => {
-      this.camRadiusGoal = Math.max(20, Math.min(220, this.camRadiusGoal + e.deltaY * 0.06));
+      this.camRadiusGoal = Math.max(16, Math.min(220, this.camRadiusGoal + e.deltaY * 0.06));
     }, { passive: true });
   }
 
