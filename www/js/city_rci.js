@@ -1,1724 +1,1451 @@
-class CityRCISystem {
-  constructor(graphicsEngine) {
-    this.gfx = graphicsEngine;
-    this.gridSize = 80;
-    this.cellSize = 4.0;
-    this.offset = (this.gridSize * this.cellSize) / 2;
+(function () {
+  const TOOL_COSTS = {
+    road_4lane: 0.4,
+    road_2lane: 0.2,
+    road_1way_1: 0.15,
+    road_1way_2: 0.28,
+    road_bike: 0.1,
+    road_pedestrian: 0.12,
+    pln: 4.5,
+    pdam: 3.5,
+    worship: 3.0,
+    school: 4.0,
+    health: 4.2,
+    safety: 3.2,
+    park: 1.8
+  };
 
-    this.grid = [];
-    this.buildings = [];
-    this.vehicles = [];
-    this.pedestrians = [];
-    this.cafeHangoutSpots = [];
-    this.nightGlowMaterials = [];
-    this.aviationBeacons = [];
-    this.lensMode = null;
+  const SERVICE_RADII = {
+    pln: 15,
+    pdam: 15,
+    worship: 12,
+    school: 12,
+    health: 12,
+    safety: 12,
+    park: 9
+  };
 
-    this.roadShape = "straight";
-    this.curveFlip = false;
-    this.roadTreesEnabled = true;
+  const SERVICE_NAMES = {
+    pln: "⚡ Gardu & Pembangkit PLN",
+    pdam: "💧 Instalasi Air Bersih PDAM",
+    worship: "🕌 Tempat Ibadah (Masjid Agung)",
+    school: "🏫 Sekolah & Pusat Pendidikan",
+    health: "🏥 Puskesmas & RSUD",
+    safety: "🚓 Polsek & Pos Damkar",
+    park: "🌳 Taman Kota & Ruang Hijau"
+  };
 
-    this.dragStart = null;
-    this.dragEnd = null;
-    this.pendingBlueprint = null;
-    this.previewGroup = new THREE.Group();
-    this.gfx.scene.add(this.previewGroup);
+  class CityRCISystem {
+    constructor(engine) {
+      this.engine = engine;
+      this.gridSize = 80;
+      this.cellSize = 4;
+      this.halfExtent = 160;
 
-    this.demand = { R: 75, C: 45, I: 55 };
-    this.stats = {
-      roads: 0,
-      plnCount: 0,
-      pdamCount: 0,
-      rBuildings: 0,
-      cBuildings: 0,
-      iBuildings: 0,
-      completedResPop: 0,
-      cafeCount: 0,
-      unpoweredCount: 0,
-      unwateredCount: 0
-    };
+      this.grid = [];
+      this.buildings = [];
+      this.vehicles = [];
+      this.pedestrians = [];
+      this.nightLights = [];
 
-    this.rootGroup = new THREE.Group();
-    this.gfx.scene.add(this.rootGroup);
+      this.roadShape = "straight";
+      this.curveFlip = false;
+      this.roadTreesEnabled = true;
+      this.pendingBlueprint = null;
+      this.smartLens = null;
 
-    this._initMaterials();
-    this._initGrid();
-  }
+      this.rootGroup = new THREE.Group();
+      this.previewGroup = new THREE.Group();
+      this.lensGroup = new THREE.Group();
+      this.engine.scene.add(this.rootGroup, this.previewGroup, this.lensGroup);
 
-  _initMaterials() {
-    const tex = this.gfx.textures;
-    this.asphaltMat = new THREE.MeshStandardMaterial({ map: tex.asphalt, roughness: 0.78, side: THREE.DoubleSide });
-    this.bikeMat = new THREE.MeshStandardMaterial({ map: tex.bikeAsphalt, roughness: 0.72, side: THREE.DoubleSide });
-    this.pavingMat = new THREE.MeshStandardMaterial({ map: tex.pavingStone, roughness: 0.84, side: THREE.DoubleSide });
-    this.sidewalkMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.86, side: THREE.DoubleSide });
-    this.whiteMarkMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc, side: THREE.DoubleSide });
-    this.yellowMarkMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide });
-    this.roofTileMat = new THREE.MeshStandardMaterial({
-      map: tex.roofTile,
-      bumpMap: tex.roofTile,
-      bumpScale: 0.08,
-      roughness: 0.65
-    });
-    this.plasterMat = new THREE.MeshStandardMaterial({
-      map: tex.wallPlaster,
-      roughness: 0.75
-    });
-    this.indMetalMat = new THREE.MeshStandardMaterial({
-      map: tex.industrialMetal,
-      bumpMap: tex.industrialMetal,
-      bumpScale: 0.06,
-      metalness: 0.35,
-      roughness: 0.55
-    });
+      this.demand = { R: 75, C: 50, I: 55 };
+      this.stats = {
+        completedResPop: 0,
+        rBuildings: 0,
+        cBuildings: 0,
+        iBuildings: 0,
+        cafeCount: 0,
+        roads: 0,
+        plnCount: 0,
+        pdamCount: 0,
+        worshipCount: 0,
+        schoolCount: 0,
+        healthCount: 0,
+        safetyCount: 0,
+        parkCount: 0,
+        unpoweredCount: 0,
+        unwateredCount: 0
+      };
 
-    this.houseWinMat = new THREE.MeshStandardMaterial({
-      map: tex.windowHouse,
-      emissive: new THREE.Color(0xfef08a),
-      emissiveMap: tex.windowHouseEmissive,
-      emissiveIntensity: 0.0,
-      roughness: 0.22
-    });
+      this._simAccum = 0;
+    }
 
-    this.towerWinMat = new THREE.MeshStandardMaterial({
-      map: tex.windowTower,
-      emissive: new THREE.Color(0xfde68a),
-      emissiveMap: tex.windowTowerEmissive,
-      emissiveIntensity: 0.0,
-      metalness: 0.55,
-      roughness: 0.18
-    });
+    isRoadTool(id) {
+      return [
+        "road_4lane",
+        "road_2lane",
+        "road_1way_1",
+        "road_1way_2",
+        "road_bike",
+        "road_pedestrian"
+      ].includes(id);
+    }
 
-    this.cafeStringLightMat = new THREE.MeshBasicMaterial({ color: 0x475569 });
-  }
+    isServiceTool(id) {
+      return ["pln", "pdam", "worship", "school", "health", "safety", "park"].includes(id);
+    }
 
-  _initGrid(region = null) {
-    this.grid = [];
-    for (let gx = 0; gx < this.gridSize; gx++) {
-      const row = [];
-      for (let gz = 0; gz < this.gridSize; gz++) {
-        row.push({
+    worldToGrid(wx, wz) {
+      const gx = Math.floor((wx + this.halfExtent) / this.cellSize);
+      const gz = Math.floor((wz + this.halfExtent) / this.cellSize);
+      return {
+        gx: Math.max(0, Math.min(this.gridSize - 1, gx)),
+        gz: Math.max(0, Math.min(this.gridSize - 1, gz))
+      };
+    }
+
+    gridToWorld(gx, gz) {
+      return {
+        x: -this.halfExtent + (gx + 0.5) * this.cellSize,
+        z: -this.halfExtent + (gz + 0.5) * this.cellSize
+      };
+    }
+
+    getCell(gx, gz) {
+      if (gx < 0 || gz < 0 || gx >= this.gridSize || gz >= this.gridSize) return null;
+      return this.grid[gx][gz];
+    }
+
+    resetCity(region) {
+      this.currentRegion = region;
+      this.clearBlueprint();
+      this.setSmartLens(null);
+
+      while (this.rootGroup.children.length > 0) {
+        this.rootGroup.remove(this.rootGroup.children[0]);
+      }
+
+      this.grid = Array.from({ length: this.gridSize }, (_, gx) =>
+        Array.from({ length: this.gridSize }, (_, gz) => ({
           gx,
           gz,
           type: "empty",
+          parentRoad: null,
           oneWayDir: null,
           hasSidewalkTrees: false,
           zone: null,
-          powered: false,
-          watered: false,
-          connectedToGate: false,
-          mesh: null,
           zoneMesh: null,
-          lensMesh: null,
-          building: null
-        });
-      }
-      this.grid.push(row);
+          mesh: null,
+          building: null,
+          roadConnected: false,
+          coverage: {
+            power: false,
+            water: false,
+            worship: false,
+            school: false,
+            health: false,
+            safety: false,
+            park: false
+          }
+        }))
+      );
+
+      this.buildings = [];
+      this.vehicles = [];
+      this.pedestrians = [];
+      this.nightLights = [];
+
+      this._buildStarterHighway(region);
+      this._recalculateNetworks();
     }
 
-    const activeReg = region || this.gfx.currentRegion || window.INDONESIA_REGIONS[0];
-    const hw = activeReg.highway;
-    for (let gx = hw.minGx; gx <= hw.maxGx; gx++) {
-      for (let gz = hw.minGz; gz <= hw.maxGz; gz++) {
-        const cell = this.getCell(gx, gz);
-        if (cell) {
-          cell.type = "starter_highway";
-          cell.connectedToGate = true;
+    _buildStarterHighway(region) {
+      const hwWorldX = region.highway ? region.highway.x : 0;
+      const gStart = this.worldToGrid(hwWorldX, 0).gx;
+      const gx1 = Math.max(2, Math.min(this.gridSize - 4, gStart));
+      const gx2 = gx1 + 1;
+
+      for (let gz = 0; gz < this.gridSize; gz++) {
+        const c1 = this.getCell(gx1, gz);
+        const c2 = this.getCell(gx2, gz);
+        c1.type = "starter_highway";
+        c2.type = "road_4lane_sub";
+        c2.parentRoad = { gx: gx1, gz };
+        c1.roadConnected = true;
+        c2.roadConnected = true;
+
+        const wp1 = this.gridToWorld(gx1, gz);
+        const gy = this.engine.getHeightAt(wp1.x + 2, wp1.z);
+        this.engine.clearVegetationNear(wp1.x + 2, wp1.z, 5.2);
+
+        const roadMesh = this._create4LaneRoadMesh(wp1.x + 2, gy, wp1.z, true, gz % 6 === 0);
+        c1.mesh = roadMesh;
+        this.rootGroup.add(roadMesh);
+
+        if (gz === 18) {
+          const gate = this._createTollGateMesh(wp1.x + 2, gy, wp1.z);
+          this.rootGroup.add(gate);
         }
       }
     }
-  }
 
-  resetCity(region = null) {
-    while (this.rootGroup.children.length > 0) {
-      this.rootGroup.remove(this.rootGroup.children[0]);
+    _createTollGateMesh(wx, gy, wz) {
+      const g = new THREE.Group();
+      const pillarMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4 });
+      const archMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35 });
+
+      [-4.1, 4.1].forEach((ox) => {
+        const p = new THREE.Mesh(new THREE.BoxGeometry(0.65, 3.6, 0.9), pillarMat);
+        p.position.set(ox, 1.8, 0);
+        p.castShadow = true;
+        g.add(p);
+      });
+
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(9.2, 1.15, 1.25), archMat);
+      beam.position.set(0, 3.6, 0);
+      beam.castShadow = true;
+      g.add(beam);
+
+      g.position.set(wx, gy, wz);
+      return g;
     }
-    this.clearBlueprint();
-    this.buildings = [];
-    this.vehicles = [];
-    this.pedestrians = [];
-    this.cafeHangoutSpots = [];
-    this.aviationBeacons = [];
-    this.lensMode = null;
-    this.demand = { R: 75, C: 45, I: 55 };
-    this._initGrid(region);
-    this._recalculateNetworks();
-  }
 
-  worldToGrid(wx, wz) {
-    const gx = Math.floor((wx + this.offset) / this.cellSize);
-    const gz = Math.floor((wz + this.offset) / this.cellSize);
-    if (gx < 0 || gx >= this.gridSize || gz < 0 || gz >= this.gridSize) return null;
-    return { gx, gz };
-  }
+    // JALAN RAYA 4 LAJUR = 2 PETAK LEBAR (8 METER), SEJAJAR JALAN TOL
+    _create4LaneRoadMesh(cx, gy, cz, isVertical, withLight = false) {
+      const g = new THREE.Group();
+      const width = 8.0;
+      const length = 4.02;
 
-  gridToWorld(gx, gz) {
-    return {
-      x: -this.offset + (gx + 0.5) * this.cellSize,
-      z: -this.offset + (gz + 0.5) * this.cellSize
-    };
-  }
+      const asphalt = new THREE.Mesh(
+        new THREE.BoxGeometry(isVertical ? width : length, 0.14, isVertical ? length : width),
+        new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.85 })
+      );
+      asphalt.position.y = 0.07;
+      asphalt.receiveShadow = true;
+      g.add(asphalt);
 
-  getCell(gx, gz) {
-    if (gx < 0 || gx >= this.gridSize || gz < 0 || gz >= this.gridSize) return null;
-    return this.grid[gx][gz];
-  }
+      // Trotoar kiri & kanan
+      const curbMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.8 });
+      [-3.65, 3.65].forEach((off) => {
+        const curb = new THREE.Mesh(
+          new THREE.BoxGeometry(isVertical ? 0.7 : length, 0.22, isVertical ? length : 0.7),
+          curbMat
+        );
+        curb.position.set(isVertical ? off : 0, 0.11, isVertical ? 0 : off);
+        curb.receiveShadow = true;
+        g.add(curb);
+      });
 
-  isRoadTool(toolId) {
-    return [
-      "road_4lane",
-      "road_2lane",
-      "road_1way_1",
-      "road_1way_2",
-      "road_bike",
-      "road_pedestrian"
-    ].includes(toolId);
-  }
+      // Median ganda kuning di tengah
+      const lineMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+      [-0.14, 0.14].forEach((off) => {
+        const line = new THREE.Mesh(
+          new THREE.BoxGeometry(isVertical ? 0.1 : length, 0.03, isVertical ? length : 0.1),
+          lineMat
+        );
+        line.position.set(isVertical ? off : 0, 0.15, isVertical ? 0 : off);
+        g.add(line);
+      });
 
-  isRoadType(type) {
-    return [
-      "road_4lane",
-      "road_2lane",
-      "road_1way_1",
-      "road_1way_2",
-      "road_bike",
-      "road_pedestrian",
-      "starter_highway"
-    ].includes(type);
-  }
+      // Garis putus-putus pembagi 2 lajur per arah
+      const dashMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+      [-1.85, 1.85].forEach((off) => {
+        const dash = new THREE.Mesh(
+          new THREE.BoxGeometry(isVertical ? 0.08 : 1.7, 0.03, isVertical ? 1.7 : 0.08),
+          dashMat
+        );
+        dash.position.set(isVertical ? off : 0, 0.15, isVertical ? 0 : off);
+        g.add(dash);
+      });
 
-  isDrivableRoad(type) {
-    return [
-      "road_4lane",
-      "road_2lane",
-      "road_1way_1",
-      "road_1way_2",
-      "starter_highway"
-    ].includes(type);
-  }
-
-  beginSelection(wx, wz, toolId) {
-    const coord = this.worldToGrid(wx, wz);
-    if (!coord) return null;
-    this.dragStart = coord;
-    this.dragEnd = coord;
-    return this._buildBlueprintFromDrag(toolId, 0);
-  }
-
-  updateSelection(wx, wz, toolId) {
-    if (!this.dragStart) return this.beginSelection(wx, wz, toolId);
-    const coord = this.worldToGrid(wx, wz);
-    if (!coord) return this.pendingBlueprint;
-    this.dragEnd = coord;
-    const rot = this.pendingBlueprint ? this.pendingBlueprint.rotation : 0;
-    return this._buildBlueprintFromDrag(toolId, rot);
-  }
-
-  toggleCurveDirection() {
-    if (!this.pendingBlueprint) return null;
-    this.curveFlip = !this.curveFlip;
-    return this._buildBlueprintFromDrag(this.pendingBlueprint.toolId, this.pendingBlueprint.rotation);
-  }
-
-  rotateBlueprint() {
-    if (!this.pendingBlueprint) return null;
-    this.pendingBlueprint.rotation = (this.pendingBlueprint.rotation + 1) % 4;
-    this._renderBlueprintPreview();
-    return this.pendingBlueprint;
-  }
-
-  clearBlueprint() {
-    this.dragStart = null;
-    this.dragEnd = null;
-    this.pendingBlueprint = null;
-    while (this.previewGroup.children.length > 0) {
-      this.previewGroup.remove(this.previewGroup.children[0]);
-    }
-  }
-
-  _traceOrthogonalSegment(x0, z0, x1, z1, outList, seenSet) {
-    let cx = x0;
-    let cz = z0;
-    const pushPoint = (px, pz, dx, dz) => {
-      const key = `${px},${pz}`;
-      if (!seenSet.has(key)) {
-        seenSet.add(key);
-        outList.push({ gx: px, gz: pz, dir: { dx, dz }, role: "road" });
+      if (withLight) {
+        const poleMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
+        const bulbMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+        [-3.65, 3.65].forEach((off) => {
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.1, 6), poleMat);
+          pole.position.set(isVertical ? off : 0, 1.55, isVertical ? 0 : off);
+          const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 6), bulbMat);
+          bulb.position.set(isVertical ? off * 0.86 : 0, 3.1, isVertical ? 0 : off * 0.86);
+          g.add(pole, bulb);
+        });
       }
-    };
 
-    while (cx !== x1) {
-      const step = x1 > cx ? 1 : -1;
-      pushPoint(cx, cz, step, 0);
-      cx += step;
+      g.position.set(cx, gy, cz);
+      return g;
     }
-    while (cz !== z1) {
-      const step = z1 > cz ? 1 : -1;
-      pushPoint(cx, cz, 0, step);
-      cz += step;
+
+    _createSingleTileRoadMesh(cell, wx, gy, wz) {
+      const g = new THREE.Group();
+      const type = cell.type;
+
+      let roadColor = 0x334155;
+      if (type === "road_bike") roadColor = 0x15803d;
+      else if (type === "road_pedestrian") roadColor = 0xb45309;
+
+      const base = new THREE.Mesh(
+        new THREE.BoxGeometry(4.02, 0.14, 4.02),
+        new THREE.MeshStandardMaterial({ color: roadColor, roughness: 0.85 })
+      );
+      base.position.y = 0.07;
+      base.receiveShadow = true;
+      g.add(base);
+
+      if (type === "road_2lane" || type === "road_1way_2") {
+        const markColor = type === "road_2lane" ? 0xfacc15 : 0xf8fafc;
+        const line = new THREE.Mesh(
+          new THREE.BoxGeometry(0.1, 0.03, 3.2),
+          new THREE.MeshBasicMaterial({ color: markColor })
+        );
+        line.position.y = 0.15;
+        g.add(line);
+      }
+
+      if (cell.hasSidewalkTrees && (cell.gx + cell.gz) % 3 === 0) {
+        const trunk = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.08, 0.11, 1.0, 5),
+          new THREE.MeshStandardMaterial({ color: 0x5c4033 })
+        );
+        trunk.position.set(1.68, 0.5, 0);
+        const leaf = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.55, 0),
+          new THREE.MeshStandardMaterial({ color: 0x22c55e })
+        );
+        leaf.position.set(1.68, 1.25, 0);
+        g.add(trunk, leaf);
+      }
+
+      g.position.set(wx, gy, wz);
+      return g;
     }
-    const lastDir = outList.length > 0 ? outList[outList.length - 1].dir : { dx: 1, dz: 0 };
-    pushPoint(x1, z1, lastDir.dx, lastDir.dz);
-  }
 
-  _buildBlueprintFromDrag(toolId, rotation) {
-    const s = this.dragStart;
-    const e = this.dragEnd;
-    const rawCells = [];
+    // =========================================================
+    // SELECTION & CETAK BIRU (TERMASUK JALAN 4 LAJUR 2 PETAK)
+    // =========================================================
+    beginSelection(wx, wz, toolId) {
+      const g = this.worldToGrid(wx, wz);
+      this._selStart = g;
+      this._selEnd = g;
+      this._selTool = toolId;
+      this._selRot = 0;
+      return this._buildBlueprint();
+    }
 
-    if (this.isRoadTool(toolId)) {
-      if (this.roadShape === "roundabout") {
-        const dragDist = Math.round(Math.hypot(e.gx - s.gx, e.gz - s.gz));
-        const R = Math.max(3, Math.min(6, dragDist || 3));
-        for (let gx = s.gx - R - 1; gx <= s.gx + R + 1; gx++) {
-          for (let gz = s.gz - R - 1; gz <= s.gz + R + 1; gz++) {
-            const d = Math.hypot(gx - s.gx, gz - s.gz);
-            if (Math.abs(d - R) <= 0.68) {
-              const ang = Math.atan2(gz - s.gz, gx - s.gx);
-              const tx = Math.round(Math.sin(ang));
-              const tz = Math.round(-Math.cos(ang));
-              rawCells.push({ gx, gz, dir: { dx: tx || 1, dz: tz }, role: "road" });
-            } else if (d < R - 0.68) {
-              const isCenter = gx === s.gx && gz === s.gz;
-              rawCells.push({ gx, gz, dir: null, role: isCenter ? "tugu" : "plaza" });
+    updateSelection(wx, wz, toolId) {
+      if (!this._selStart) return this.beginSelection(wx, wz, toolId);
+      this._selEnd = this.worldToGrid(wx, wz);
+      return this._buildBlueprint();
+    }
+
+    toggleCurveDirection() {
+      this.curveFlip = !this.curveFlip;
+      return this._buildBlueprint();
+    }
+
+    rotateBlueprint() {
+      this._selRot = ((this._selRot || 0) + 1) % 4;
+      return this._buildBlueprint();
+    }
+
+    clearBlueprint() {
+      this._selStart = null;
+      this._selEnd = null;
+      this.pendingBlueprint = null;
+      while (this.previewGroup.children.length > 0) {
+        this.previewGroup.remove(this.previewGroup.children[0]);
+      }
+    }
+
+    _computeLineCells(a, b, shape) {
+      const pts = [];
+      if (shape === "roundabout") {
+        const cx = b.gx;
+        const cz = b.gz;
+        for (let dx = -2; dx <= 2; dx++) {
+          for (let dz = -2; dz <= 2; dz++) {
+            const dist = Math.hypot(dx, dz);
+            if (dist >= 1.3 && dist <= 2.35) {
+              pts.push({ gx: cx + dx, gz: cz + dz, isPlaza: false });
+            } else if (dist < 1.3) {
+              pts.push({ gx: cx + dx, gz: cz + dz, isPlaza: true });
             }
           }
         }
-      } else if (this.roadShape === "curved") {
-        const midX = (s.gx + e.gx) * 0.5;
-        const midZ = (s.gz + e.gz) * 0.5;
-        const dx = e.gx - s.gx;
-        const dz = e.gz - s.gz;
-        const sign = this.curveFlip ? -1 : 1;
-        const ctrlX = midX - dz * 0.55 * sign;
-        const ctrlZ = midZ + dx * 0.55 * sign;
+        return pts;
+      }
 
-        const steps = Math.max(12, Math.ceil(Math.hypot(dx, dz) * 3));
-        const pts = [];
+      if (shape === "curved") {
+        const corner = this.curveFlip ? { gx: a.gx, gz: b.gz } : { gx: b.gx, gz: a.gz };
+        const steps = Math.max(Math.abs(b.gx - a.gx) + Math.abs(b.gz - a.gz), 1);
+        const seen = new Set();
         for (let i = 0; i <= steps; i++) {
           const t = i / steps;
-          const bx = Math.round((1 - t) * (1 - t) * s.gx + 2 * (1 - t) * t * ctrlX + t * t * e.gx);
-          const bz = Math.round((1 - t) * (1 - t) * s.gz + 2 * (1 - t) * t * ctrlZ + t * t * e.gz);
-          if (pts.length === 0 || pts[pts.length - 1].gx !== bx || pts[pts.length - 1].gz !== bz) {
-            pts.push({ gx: bx, gz: bz });
+          const gx = Math.round((1 - t) * (1 - t) * a.gx + 2 * (1 - t) * t * corner.gx + t * t * b.gx);
+          const gz = Math.round((1 - t) * (1 - t) * a.gz + 2 * (1 - t) * t * corner.gz + t * t * b.gz);
+          const key = `${gx},${gz}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            pts.push({ gx, gz });
           }
         }
-        const seen = new Set();
-        for (let i = 0; i < pts.length - 1; i++) {
-          this._traceOrthogonalSegment(pts[i].gx, pts[i].gz, pts[i + 1].gx, pts[i + 1].gz, rawCells, seen);
-        }
-        if (pts.length === 1) {
-          rawCells.push({ gx: pts[0].gx, gz: pts[0].gz, dir: { dx: 1, dz: 0 }, role: "road" });
+        return pts;
+      }
+
+      // Lurus ortogonal
+      const dx = b.gx - a.gx;
+      const dz = b.gz - a.gz;
+      if (Math.abs(dx) >= Math.abs(dz)) {
+        const step = dx >= 0 ? 1 : -1;
+        for (let x = a.gx; x !== b.gx + step; x += step) {
+          pts.push({ gx: x, gz: a.gz, dir: { dx: step, dz: 0 }, isVertical: false });
         }
       } else {
-        const dx = e.gx - s.gx;
-        const dz = e.gz - s.gz;
-        if (Math.abs(dx) >= Math.abs(dz)) {
-          const step = dx >= 0 ? 1 : -1;
-          for (let x = s.gx; x !== e.gx + step; x += step) {
-            rawCells.push({ gx: x, gz: s.gz, dir: { dx: step, dz: 0 }, role: "road" });
-          }
-        } else {
-          const step = dz >= 0 ? 1 : -1;
-          for (let z = s.gz; z !== e.gz + step; z += step) {
-            rawCells.push({ gx: s.gx, gz: z, dir: { dx: 0, dz: step }, role: "road" });
-          }
+        const step = dz >= 0 ? 1 : -1;
+        for (let z = a.gz; z !== b.gz + step; z += step) {
+          pts.push({ gx: a.gx, gz: z, dir: { dx: 0, dz: step }, isVertical: true });
         }
       }
-    } else if (toolId === "pln" || toolId === "pdam") {
-      rawCells.push({ gx: e.gx, gz: e.gz, dir: null, role: "util" });
-    } else {
-      const minX = Math.min(s.gx, e.gx);
-      const maxX = Math.max(s.gx, e.gx);
-      const minZ = Math.min(s.gz, e.gz);
-      const maxZ = Math.max(s.gz, e.gz);
-      for (let x = minX; x <= maxX; x++) {
-        for (let z = minZ; z <= maxZ; z++) {
-          rawCells.push({ gx: x, gz: z, dir: null, role: "zone" });
-        }
+      return pts;
+    }
+
+    _buildBlueprint() {
+      while (this.previewGroup.children.length > 0) {
+        this.previewGroup.remove(this.previewGroup.children[0]);
       }
-    }
+      if (!this._selStart || !this._selEnd || !this._selTool) return null;
 
-    let totalCost = 0;
-    const evaluatedCells = rawCells.map((item) => {
-      const cell = this.getCell(item.gx, item.gz);
-      const pos = this.gridToWorld(item.gx, item.gz);
-      const y = this.gfx.getHeightAt(pos.x, pos.z);
-      const valid = this._isCellValidForTool(cell, y, toolId);
-      const cost = valid ? this._getCellToolCost(y, toolId) : 0;
-      totalCost += cost;
-      return {
-        gx: item.gx,
-        gz: item.gz,
-        wx: pos.x,
-        wz: pos.z,
-        groundY: y,
-        valid,
-        cost,
-        dir: item.dir,
-        role: item.role
-      };
-    });
+      const tool = this._selTool;
+      const a = this._selStart;
+      const b = this._selEnd;
+      const minX = Math.min(a.gx, b.gx);
+      const maxX = Math.max(a.gx, b.gx);
+      const minZ = Math.min(a.gz, b.gz);
+      const maxZ = Math.max(a.gz, b.gz);
 
-    const validCount = evaluatedCells.filter((c) => c.valid).length;
-    const spanW = Math.abs(e.gx - s.gx) + 1;
-    const spanH = Math.abs(e.gz - s.gz) + 1;
+      const cells = [];
+      let validCount = 0;
 
-    this.pendingBlueprint = {
-      toolId,
-      shape: this.roadShape,
-      cells: evaluatedCells,
-      validCount,
-      totalCost,
-      spanW,
-      spanH,
-      rotation
-    };
+      if (this.isRoadTool(tool)) {
+        const line = this._computeLineCells(a, b, this.roadShape);
+        line.forEach((p) => {
+          const c = this.getCell(p.gx, p.gz);
+          if (!c || c.type === "starter_highway") return;
 
-    this._renderBlueprintPreview();
-    return this.pendingBlueprint;
-  }
-
-  _isCellValidForTool(cell, groundY, toolId) {
-    if (!cell || cell.type === "starter_highway") return false;
-    if (toolId === "bulldoze") {
-      return Boolean(cell.building || cell.zone || cell.type !== "empty");
-    }
-    if (toolId === "zone_clear") {
-      return Boolean(cell.zone || cell.building);
-    }
-    if (this.isRoadTool(toolId)) {
-      return cell.type === "empty" && !cell.building && groundY <= 15.0;
-    }
-    if (toolId === "pln" || toolId === "pdam") {
-      return cell.type === "empty" && !cell.building && groundY >= 0.35 && groundY <= 13.0;
-    }
-    if (toolId === "zone_r" || toolId === "zone_c" || toolId === "zone_i") {
-      return cell.type === "empty" && groundY >= 0.4 && groundY <= 12.0;
-    }
-    return false;
-  }
-
-  _getCellToolCost(groundY, toolId) {
-    if (toolId === "road_4lane") return groundY < 0.25 ? 0.85 : 0.4;
-    if (toolId === "road_2lane") return groundY < 0.25 ? 0.5 : 0.2;
-    if (toolId === "road_1way_1") return groundY < 0.25 ? 0.4 : 0.15;
-    if (toolId === "road_1way_2") return groundY < 0.25 ? 0.65 : 0.28;
-    if (toolId === "road_bike") return 0.1;
-    if (toolId === "road_pedestrian") return 0.12;
-    if (toolId === "pln") return 4.5;
-    if (toolId === "pdam") return 3.5;
-    if (toolId === "zone_r" || toolId === "zone_c" || toolId === "zone_i") return 0.05;
-    if (toolId === "bulldoze") return 0.05;
-    return 0;
-  }
-
-  _renderBlueprintPreview() {
-    while (this.previewGroup.children.length > 0) {
-      this.previewGroup.remove(this.previewGroup.children[0]);
-    }
-    const bp = this.pendingBlueprint;
-    if (!bp) return;
-
-    const tileGeo = new THREE.BoxGeometry(this.cellSize * 0.94, 0.22, this.cellSize * 0.94);
-    const validMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.64 });
-    const plazaMat = new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.64 });
-    const invalidMat = new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.64 });
-
-    bp.cells.forEach((c) => {
-      const y = Math.max(0.95, c.groundY + 0.18);
-      const mat = !c.valid ? invalidMat : c.role === "plaza" || c.role === "tugu" ? plazaMat : validMat;
-      const box = new THREE.Mesh(tileGeo, mat);
-      box.position.set(c.wx, y, c.wz);
-      this.previewGroup.add(box);
-
-      if ((bp.toolId === "pln" || bp.toolId === "pdam") && c.valid) {
-        const ringGeo = new THREE.RingGeometry(11 * this.cellSize - 0.35, 11 * this.cellSize, 48);
-        ringGeo.rotateX(-Math.PI / 2);
-        const ringMat = new THREE.MeshBasicMaterial({
-          color: 0x38bdf8,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.65
+          if (tool === "road_4lane" && !p.isPlaza) {
+            const subGx = p.isVertical ? p.gx + 1 : p.gx;
+            const subGz = p.isVertical ? p.gz : p.gz + 1;
+            const subC = this.getCell(subGx, subGz);
+            if (!subC || subC.type === "starter_highway") return;
+            cells.push({
+              gx: p.gx,
+              gz: p.gz,
+              subGx,
+              subGz,
+              isVertical: Boolean(p.isVertical),
+              isPlaza: false
+            });
+            validCount++;
+          } else {
+            cells.push({
+              gx: p.gx,
+              gz: p.gz,
+              dir: p.dir || { dx: 1, dz: 0 },
+              isPlaza: Boolean(p.isPlaza)
+            });
+            validCount++;
+          }
         });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.position.set(c.wx, y + 0.12, c.wz);
-        this.previewGroup.add(ring);
-      }
-    });
-  }
-
-  confirmBlueprint(spendCallback) {
-    const bp = this.pendingBlueprint;
-    if (!bp || bp.validCount === 0) {
-      this.clearBlueprint();
-      return false;
-    }
-
-    if (!spendCallback(bp.totalCost)) {
-      return false;
-    }
-
-    const validCells = bp.cells.filter((c) => c.valid);
-    if (this.isRoadTool(bp.toolId)) {
-      this.gfx.gradeTerrainForCells(validCells);
-    }
-
-    const modifiedRoads = [];
-
-    validCells.forEach((c) => {
-      const cell = this.getCell(c.gx, c.gz);
-
-      if (bp.toolId === "bulldoze") {
-        if (cell.building) this._clearBuilding(cell);
-        if (cell.zone) {
-          cell.zone = null;
-          if (cell.zoneMesh) {
-            this.rootGroup.remove(cell.zoneMesh);
-            cell.zoneMesh = null;
-          }
+      } else if (this.isServiceTool(tool)) {
+        const c = this.getCell(b.gx, b.gz);
+        if (c && c.type === "empty" && !c.building) {
+          cells.push({ gx: b.gx, gz: b.gz });
+          validCount = 1;
         }
-        if (cell.type !== "empty" && cell.type !== "starter_highway") {
-          const wasRoad = this.isRoadType(cell.type);
-          if (cell.mesh) {
-            this.rootGroup.remove(cell.mesh);
-            cell.mesh = null;
-          }
-          cell.type = "empty";
-          cell.oneWayDir = null;
-          cell.hasSidewalkTrees = false;
-          if (wasRoad) modifiedRoads.push([c.gx, c.gz]);
-        }
-      } else if (bp.toolId === "zone_clear") {
-        this._clearBuilding(cell);
-        cell.zone = null;
-        if (cell.zoneMesh) {
-          this.rootGroup.remove(cell.zoneMesh);
-          cell.zoneMesh = null;
-        }
-      } else if (this.isRoadTool(bp.toolId)) {
-        if (cell.zone) {
-          cell.zone = null;
-          if (cell.zoneMesh) {
-            this.rootGroup.remove(cell.zoneMesh);
-            cell.zoneMesh = null;
-          }
-        }
-        this.gfx.clearVegetationNear(c.wx, c.wz, 2.4);
-
-        if (c.role === "plaza" || c.role === "tugu") {
-          cell.type = "alun_plaza";
-          cell.mesh = this._createAlunPlazaMesh(c.wx, this.gfx.getHeightAt(c.wx, c.wz), c.wz, c.role === "tugu");
-          this.rootGroup.add(cell.mesh);
-        } else {
-          cell.type = bp.toolId;
-          cell.oneWayDir = c.dir || { dx: 1, dz: 0 };
-          cell.hasSidewalkTrees = this.roadTreesEnabled;
-          modifiedRoads.push([c.gx, c.gz]);
-        }
-      } else if (bp.toolId === "pln" || bp.toolId === "pdam") {
-        if (cell.zoneMesh) {
-          this.rootGroup.remove(cell.zoneMesh);
-          cell.zoneMesh = null;
-        }
-        cell.zone = null;
-        cell.type = bp.toolId;
-        this.gfx.clearVegetationNear(c.wx, c.wz, 2.7);
-        const gy = this.gfx.getHeightAt(c.wx, c.wz);
-        cell.mesh =
-          bp.toolId === "pln"
-            ? this._createPLNMesh(c.wx, gy, c.wz, bp.rotation)
-            : this._createPDAMMesh(c.wx, gy, c.wz, bp.rotation);
-        this.rootGroup.add(cell.mesh);
-      } else if (bp.toolId === "zone_r" || bp.toolId === "zone_c" || bp.toolId === "zone_i") {
-        const zCode = bp.toolId === "zone_r" ? "R" : bp.toolId === "zone_c" ? "C" : "I";
-        if (cell.building && cell.building.zone !== zCode) this._clearBuilding(cell);
-        cell.zone = zCode;
-        this._updateZoneOverlay(cell, c.wx, this.gfx.getHeightAt(c.wx, c.wz), c.wz);
-      }
-    });
-
-    modifiedRoads.forEach(([gx, gz]) => this._rebuildRoadAndNeighbors(gx, gz));
-    this._recalculateNetworks();
-    this.clearBlueprint();
-    return true;
-  }
-
-  _clearBuilding(cell) {
-    if (!cell.building) return;
-    if (cell.building.mesh) this.rootGroup.remove(cell.building.mesh);
-    if (cell.building.beacon) {
-      const bIdx = this.aviationBeacons.indexOf(cell.building.beacon);
-      if (bIdx !== -1) this.aviationBeacons.splice(bIdx, 1);
-    }
-    this.cafeHangoutSpots = this.cafeHangoutSpots.filter((s) => s.gx !== cell.gx || s.gz !== cell.gz);
-    const idx = this.buildings.indexOf(cell.building);
-    if (idx !== -1) this.buildings.splice(idx, 1);
-    cell.building = null;
-  }
-
-  _rebuildRoadAndNeighbors(gx, gz) {
-    const coords = [
-      [gx, gz],
-      [gx - 1, gz],
-      [gx + 1, gz],
-      [gx, gz - 1],
-      [gx, gz + 1]
-    ];
-    coords.forEach(([cx, cz]) => {
-      const c = this.getCell(cx, cz);
-      if (!c || !this.isRoadTool(c.type)) return;
-      if (c.mesh) this.rootGroup.remove(c.mesh);
-      const pos = this.gridToWorld(cx, cz);
-      const y = this.gfx.getHeightAt(pos.x, pos.z);
-      c.mesh = this._createSeamlessRoadMesh(cx, cz, pos.x, y, pos.z, c);
-      this.rootGroup.add(c.mesh);
-    });
-  }
-
-  // SUBDIVIDED TERRAIN-CONFORMING PATCH (4x4 sub-grid per petak -> 100% menyambung rapat tanpa pernah putus!)
-  _makeSubdividedPatch(x0, z0, x1, z1, yOffset, mat, isBridge, segs = 4) {
-    const geo = new THREE.BufferGeometry();
-    const verts = [];
-    const uvs = [];
-    const indices = [];
-
-    for (let iz = 0; iz <= segs; iz++) {
-      const tz = iz / segs;
-      const wz = z0 + (z1 - z0) * tz;
-      for (let ix = 0; ix <= segs; ix++) {
-        const tx = ix / segs;
-        const wx = x0 + (x1 - x0) * tx;
-        const wy = (isBridge ? 0.95 : this.gfx.getHeightAt(wx, wz)) + yOffset;
-        verts.push(wx, wy, wz);
-        uvs.push(tx, tz);
-      }
-    }
-
-    const rowStride = segs + 1;
-    for (let iz = 0; iz < segs; iz++) {
-      for (let ix = 0; ix < segs; ix++) {
-        const a = iz * rowStride + ix;
-        const b = a + 1;
-        const c = (iz + 1) * rowStride + ix;
-        const d = c + 1;
-        indices.push(a, c, b, b, c, d);
-      }
-    }
-
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.receiveShadow = true;
-    return mesh;
-  }
-
-  _createSeamlessRoadMesh(gx, gz, wx, groundY, wz, cell) {
-    const group = new THREE.Group();
-    const rType = cell.type;
-    const isBridge = groundY < 0.25;
-    const s = this.cellSize;
-    const halfS = s / 2;
-
-    const nUp = this.isRoadType(this.getCell(gx, gz - 1)?.type);
-    const nDown = this.isRoadType(this.getCell(gx, gz + 1)?.type);
-    const nLeft = this.isRoadType(this.getCell(gx - 1, gz)?.type);
-    const nRight = this.isRoadType(this.getCell(gx + 1, gz)?.type);
-    const connCount = [nUp, nDown, nLeft, nRight].filter(Boolean).length;
-
-    if (rType === "road_pedestrian") {
-      group.add(this._makeSubdividedPatch(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.1, this.pavingMat, isBridge, 4));
-      if (cell.hasSidewalkTrees && !isBridge && (gx + gz) % 3 === 0) {
-        this._attachSidewalkPlanterTree(group, wx + 1.35, wz + 1.35);
-      }
-      return group;
-    }
-
-    if (rType === "road_bike") {
-      group.add(this._makeSubdividedPatch(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.09, this.sidewalkMat, isBridge, 4));
-      const bw = 0.85;
-      group.add(this._makeSubdividedPatch(wx - bw, wz - bw, wx + bw, wz + bw, 0.125, this.bikeMat, isBridge, 2));
-      if (nUp) group.add(this._makeSubdividedPatch(wx - bw, wz - halfS, wx + bw, wz - bw, 0.125, this.bikeMat, isBridge, 2));
-      if (nDown) group.add(this._makeSubdividedPatch(wx - bw, wz + bw, wx + bw, wz + halfS, 0.125, this.bikeMat, isBridge, 2));
-      if (nLeft) group.add(this._makeSubdividedPatch(wx - halfS, wz - bw, wx - bw, wz + bw, 0.125, this.bikeMat, isBridge, 2));
-      if (nRight) group.add(this._makeSubdividedPatch(wx + bw, wz - bw, wx + halfS, wz + bw, 0.125, this.bikeMat, isBridge, 2));
-      return group;
-    }
-
-    const widthMap = {
-      road_4lane: 3.3,
-      road_1way_2: 2.8,
-      road_2lane: 2.3,
-      road_1way_1: 1.75
-    };
-    const roadW = widthMap[rType] || 2.3;
-    const hw = roadW / 2;
-
-    // Dasar Trotoar Beton Subdivided (4x4 segmen)
-    group.add(this._makeSubdividedPatch(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.09, this.sidewalkMat, isBridge, 4));
-
-    // Inti Aspal Tengah Subdivided
-    group.add(this._makeSubdividedPatch(wx - hw, wz - hw, wx + hw, wz + hw, 0.13, this.asphaltMat, isBridge, 2));
-
-    if (nUp) {
-      group.add(this._makeSubdividedPatch(wx - hw, wz - halfS, wx + hw, wz - hw, 0.13, this.asphaltMat, isBridge, 2));
-      this._addLaneMarkings(group, wx, wz - halfS * 0.55, true, rType, cell.oneWayDir, isBridge);
-    }
-    if (nDown) {
-      group.add(this._makeSubdividedPatch(wx - hw, wz + hw, wx + hw, wz + halfS, 0.13, this.asphaltMat, isBridge, 2));
-      this._addLaneMarkings(group, wx, wz + halfS * 0.55, true, rType, cell.oneWayDir, isBridge);
-    }
-    if (nLeft) {
-      group.add(this._makeSubdividedPatch(wx - halfS, wz - hw, wx - hw, wz + hw, 0.13, this.asphaltMat, isBridge, 2));
-      this._addLaneMarkings(group, wx - halfS * 0.55, wz, false, rType, cell.oneWayDir, isBridge);
-    }
-    if (nRight) {
-      group.add(this._makeSubdividedPatch(wx + hw, wz - hw, wx + halfS, wz + hw, 0.13, this.asphaltMat, isBridge, 2));
-      this._addLaneMarkings(group, wx + halfS * 0.55, wz, false, rType, cell.oneWayDir, isBridge);
-    }
-
-    if (connCount >= 3 && nDown) {
-      for (let sx = -hw * 0.72; sx <= hw * 0.72; sx += 0.38) {
-        group.add(
-          this._makeSubdividedPatch(wx + sx - 0.08, wz + hw + 0.05, wx + sx + 0.08, wz + hw + 0.48, 0.145, this.whiteMarkMat, isBridge, 1)
-        );
-      }
-    }
-
-    if (cell.hasSidewalkTrees && !isBridge && connCount <= 2 && (gx + gz) % 3 === 0) {
-      const cornerX = !nRight ? wx + halfS - 0.28 : wx - halfS + 0.28;
-      const cornerZ = !nDown ? wz + halfS - 0.28 : wz - halfS + 0.28;
-      if ((!nRight || !nLeft) && (!nDown || !nUp)) {
-        this._attachSidewalkPlanterTree(group, cornerX, cornerZ);
-      }
-    }
-
-    if (isBridge) {
-      const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.4, 3.8, 10), this.sidewalkMat);
-      pillar.position.set(wx, -0.95, wz);
-      group.add(pillar);
-    }
-
-    return group;
-  }
-
-  _addLaneMarkings(group, mx, mz, isVertical, rType, oneWayDir, isBridge) {
-    if (rType === "road_4lane") {
-      if (isVertical) {
-        group.add(this._makeSubdividedPatch(mx - 0.16, mz - 0.55, mx - 0.05, mz + 0.55, 0.145, this.yellowMarkMat, isBridge, 1));
-        group.add(this._makeSubdividedPatch(mx + 0.05, mz - 0.55, mx + 0.16, mz + 0.55, 0.145, this.yellowMarkMat, isBridge, 1));
-        group.add(this._makeSubdividedPatch(mx - 0.85, mz - 0.35, mx - 0.77, mz + 0.35, 0.145, this.whiteMarkMat, isBridge, 1));
-        group.add(this._makeSubdividedPatch(mx + 0.77, mz - 0.35, mx + 0.85, mz + 0.35, 0.145, this.whiteMarkMat, isBridge, 1));
-      } else {
-        group.add(this._makeSubdividedPatch(mx - 0.55, mz - 0.16, mx + 0.55, mz - 0.05, 0.145, this.yellowMarkMat, isBridge, 1));
-        group.add(this._makeSubdividedPatch(mx - 0.55, mz + 0.05, mx + 0.55, mz + 0.16, 0.145, this.yellowMarkMat, isBridge, 1));
-        group.add(this._makeSubdividedPatch(mx - 0.35, mz - 0.85, mx + 0.35, mz - 0.77, 0.145, this.whiteMarkMat, isBridge, 1));
-        group.add(this._makeSubdividedPatch(mx - 0.35, mz + 0.77, mx + 0.35, mz + 0.85, 0.145, this.whiteMarkMat, isBridge, 1));
-      }
-    } else if (rType === "road_2lane") {
-      if (isVertical) {
-        group.add(this._makeSubdividedPatch(mx - 0.06, mz - 0.45, mx + 0.06, mz + 0.45, 0.145, this.whiteMarkMat, isBridge, 1));
-      } else {
-        group.add(this._makeSubdividedPatch(mx - 0.45, mz - 0.06, mx + 0.45, mz + 0.06, 0.145, this.whiteMarkMat, isBridge, 1));
-      }
-    } else if (rType === "road_1way_1" || rType === "road_1way_2") {
-      const py = (isBridge ? 0.95 : this.gfx.getHeightAt(mx, mz)) + 0.15;
-      const arrowGroup = new THREE.Group();
-      const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.55), this.whiteMarkMat);
-      const headL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.28), this.whiteMarkMat);
-      headL.position.set(-0.08, 0, -0.18);
-      headL.rotation.y = 0.6;
-      const headR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.28), this.whiteMarkMat);
-      headR.position.set(0.08, 0, -0.18);
-      headR.rotation.y = -0.6;
-      arrowGroup.add(shaft, headL, headR);
-
-      if (oneWayDir) {
-        arrowGroup.rotation.y = Math.atan2(-oneWayDir.dx, -oneWayDir.dz);
-      }
-
-      if (rType === "road_1way_2") {
-        const a1 = arrowGroup.clone();
-        const a2 = arrowGroup.clone();
-        if (isVertical) {
-          a1.position.set(mx - 0.55, py, mz);
-          a2.position.set(mx + 0.55, py, mz);
-        } else {
-          a1.position.set(mx, py, mz - 0.55);
-          a2.position.set(mx, py, mz + 0.55);
-        }
-        group.add(a1, a2);
-      } else {
-        arrowGroup.position.set(mx, py, mz);
-        group.add(arrowGroup);
-      }
-    }
-  }
-
-  _attachSidewalkPlanterTree(group, tx, tz) {
-    const gy = this.gfx.getHeightAt(tx, tz);
-    const planter = new THREE.Mesh(
-      new THREE.BoxGeometry(0.56, 0.2, 0.56),
-      new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.85 })
-    );
-    planter.position.set(tx, gy + 0.14, tz);
-    group.add(planter);
-    this.gfx.addTreeAt(tx, gy + 0.16, tz, 0.62);
-  }
-
-  _createAlunPlazaMesh(wx, groundY, wz, hasTugu) {
-    const group = new THREE.Group();
-    const s = this.cellSize;
-    const halfS = s / 2;
-    group.add(this._makeSubdividedPatch(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.09, this.pavingMat, false, 3));
-
-    const grassPatch = new THREE.Mesh(
-      new THREE.BoxGeometry(s * 0.78, 0.16, s * 0.78),
-      new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.85 })
-    );
-    grassPatch.position.set(wx, groundY + 0.12, wz);
-    group.add(grassPatch);
-
-    if (hasTugu) {
-      const base = new THREE.Mesh(
-        new THREE.CylinderGeometry(1.3, 1.5, 0.5, 16),
-        new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 })
-      );
-      base.position.set(wx, groundY + 0.35, wz);
-
-      const obelisk = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.24, 0.52, 4.2, 8),
-        new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.35 })
-      );
-      obelisk.position.set(wx, groundY + 2.6, wz);
-      obelisk.castShadow = true;
-
-      const lotus = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.45, 0),
-        new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.6, roughness: 0.25 })
-      );
-      lotus.position.set(wx, groundY + 4.95, wz);
-      group.add(base, obelisk, lotus);
-    } else if (Math.random() > 0.45) {
-      this.gfx.addTreeAt(wx, groundY + 0.16, wz, 0.72);
-    }
-    return group;
-  }
-
-  _createPLNMesh(wx, groundY, wz, rotation = 0) {
-    const group = new THREE.Group();
-    const pad = new THREE.Mesh(
-      new THREE.BoxGeometry(3.7, 0.45, 3.7),
-      new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.8 })
-    );
-    pad.position.y = -0.05;
-
-    const hall = new THREE.Mesh(
-      new THREE.BoxGeometry(2.0, 1.75, 2.5),
-      this.plasterMat
-    );
-    hall.position.set(-0.45, 1.05, 0);
-    hall.castShadow = true;
-
-    const stripe = new THREE.Mesh(
-      new THREE.BoxGeometry(2.06, 0.3, 2.56),
-      new THREE.MeshStandardMaterial({ color: 0x0284c7 })
-    );
-    stripe.position.set(-0.45, 1.55, 0);
-
-    const tower = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.35, 0.54, 3.6, 12),
-      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.45, roughness: 0.35 })
-    );
-    tower.position.set(1.0, 1.9, -0.45);
-    tower.castShadow = true;
-
-    const beacon = new THREE.Mesh(
-      new THREE.SphereGeometry(0.2, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
-    );
-    beacon.position.set(1.0, 3.8, -0.45);
-
-    group.add(pad, hall, stripe, tower, beacon);
-    group.position.set(wx, groundY, wz);
-    group.rotation.y = rotation * (Math.PI / 2);
-    return group;
-  }
-
-  _createPDAMMesh(wx, groundY, wz, rotation = 0) {
-    const group = new THREE.Group();
-    const pad = new THREE.Mesh(
-      new THREE.BoxGeometry(3.7, 0.45, 3.7),
-      new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.8 })
-    );
-    pad.position.y = -0.05;
-
-    const basin = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.12, 1.12, 0.76, 16),
-      this.plasterMat
-    );
-    basin.position.set(-0.55, 0.55, 0.4);
-
-    const waterDisk = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.0, 1.0, 0.79, 16),
-      new THREE.MeshStandardMaterial({ color: 0x0ea5e9, roughness: 0.2 })
-    );
-    waterDisk.position.set(-0.55, 0.56, 0.4);
-
-    const leg = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.24, 0.36, 2.6, 10),
-      new THREE.MeshStandardMaterial({ color: 0xcbd5e1 })
-    );
-    leg.position.set(0.88, 1.4, -0.6);
-
-    const tank = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.78, 0.72, 1.15, 14),
-      new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35 })
-    );
-    tank.position.set(0.88, 2.9, -0.6);
-    tank.castShadow = true;
-
-    group.add(pad, basin, waterDisk, leg, tank);
-    group.position.set(wx, groundY, wz);
-    group.rotation.y = rotation * (Math.PI / 2);
-    return group;
-  }
-
-  _updateZoneOverlay(cell, wx, groundY, wz) {
-    if (cell.zoneMesh) this.rootGroup.remove(cell.zoneMesh);
-    const colorMap = { R: 0x22c55e, C: 0x3b82f6, I: 0xeab308 };
-    const mat = new THREE.MeshBasicMaterial({
-      color: colorMap[cell.zone],
-      transparent: true,
-      opacity: 0.38,
-      depthWrite: false,
-      side: THREE.DoubleSide
-    });
-    const halfS = this.cellSize * 0.46;
-    const mesh = this._makeSubdividedPatch(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.1, mat, false, 2);
-    cell.zoneMesh = mesh;
-    this.rootGroup.add(mesh);
-  }
-
-  setSmartLens(mode) {
-    this.lensMode = mode;
-    for (let gx = 0; gx < this.gridSize; gx++) {
-      for (let gz = 0; gz < this.gridSize; gz++) {
-        const cell = this.grid[gx][gz];
-        if (cell.lensMesh) {
-          this.rootGroup.remove(cell.lensMesh);
-          cell.lensMesh = null;
-        }
-        if (!mode) continue;
-
-        const hasTarget = cell.zone || cell.building || cell.type === "pln" || cell.type === "pdam";
-        if (!hasTarget) continue;
-
-        const pos = this.gridToWorld(gx, gz);
-        const y = this.gfx.getHeightAt(pos.x, pos.z);
-        const isCovered = mode === "pln" ? cell.powered : cell.watered;
-        const col = isCovered ? 0x38bdf8 : 0xef4444;
-
-        const geo = new THREE.PlaneGeometry(this.cellSize * 0.95, this.cellSize * 0.95);
-        geo.rotateX(-Math.PI / 2);
-        const mat = new THREE.MeshBasicMaterial({
-          color: col,
-          transparent: true,
-          opacity: 0.6,
-          depthWrite: false
-        });
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(pos.x, y + 0.18, pos.z);
-        cell.lensMesh = mesh;
-        this.rootGroup.add(mesh);
-      }
-    }
-  }
-
-  _recalculateNetworks() {
-    for (let gx = 0; gx < this.gridSize; gx++) {
-      for (let gz = 0; gz < this.gridSize; gz++) {
-        const c = this.grid[gx][gz];
-        c.powered = false;
-        c.watered = false;
-        c.connectedToGate = c.type === "starter_highway";
-      }
-    }
-
-    const queue = [];
-    for (let gx = 0; gx < this.gridSize; gx++) {
-      for (let gz = 0; gz < this.gridSize; gz++) {
-        if (this.grid[gx][gz].type === "starter_highway") queue.push([gx, gz]);
-      }
-    }
-    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-    while (queue.length > 0) {
-      const [cx, cz] = queue.shift();
-      for (const [dx, dz] of dirs) {
-        const nc = this.getCell(cx + dx, cz + dz);
-        if (nc && this.isRoadType(nc.type) && !nc.connectedToGate) {
-          nc.connectedToGate = true;
-          queue.push([nc.gx, nc.gz]);
-        }
-      }
-    }
-
-    let plnCount = 0;
-    let pdamCount = 0;
-    const radius = 11;
-
-    for (let gx = 0; gx < this.gridSize; gx++) {
-      for (let gz = 0; gz < this.gridSize; gz++) {
-        const src = this.grid[gx][gz];
-        if (src.type === "pln") {
-          plnCount++;
-          this._markRadius(gx, gz, radius, "powered");
-        } else if (src.type === "pdam") {
-          pdamCount++;
-          this._markRadius(gx, gz, radius, "watered");
-        }
-      }
-    }
-
-    let roads = 0;
-    let rBuildings = 0;
-    let cBuildings = 0;
-    let iBuildings = 0;
-    let completedResPop = 0;
-    let cafeCount = 0;
-    let unpoweredCount = 0;
-    let unwateredCount = 0;
-
-    for (let gx = 0; gx < this.gridSize; gx++) {
-      for (let gz = 0; gz < this.gridSize; gz++) {
-        const c = this.grid[gx][gz];
-        if (this.isRoadTool(c.type)) roads++;
-        if (c.building) {
-          if (c.building.stage === "built") {
-            if (c.building.zone === "R") {
-              rBuildings += c.building.level;
-              completedResPop += c.building.level === 1 ? 45 : c.building.level === 2 ? 150 : 580;
-            }
-            if (c.building.zone === "C") {
-              cBuildings += c.building.level;
-              if (c.building.isCafe) cafeCount++;
-            }
-            if (c.building.zone === "I") iBuildings += c.building.level;
-          }
-          if (!c.powered) unpoweredCount++;
-          if (!c.watered) unwateredCount++;
-        }
-      }
-    }
-
-    this.stats = {
-      roads,
-      plnCount,
-      pdamCount,
-      rBuildings,
-      cBuildings,
-      iBuildings,
-      completedResPop,
-      cafeCount,
-      unpoweredCount,
-      unwateredCount
-    };
-
-    if (this.lensMode) this.setSmartLens(this.lensMode);
-  }
-
-  _markRadius(cx, cz, radius, prop) {
-    for (let gx = Math.max(0, cx - radius); gx <= Math.min(this.gridSize - 1, cx + radius); gx++) {
-      for (let gz = Math.max(0, cz - radius); gz <= Math.min(this.gridSize - 1, cz + radius); gz++) {
-        if (Math.hypot(gx - cx, gz - cz) <= radius) {
-          this.grid[gx][gz][prop] = true;
-        }
-      }
-    }
-  }
-
-  _getRoadFacingYaw(gx, gz) {
-    const checks = [
-      [0, 1, 0],
-      [0, -1, Math.PI],
-      [1, 0, Math.PI / 2],
-      [-1, 0, -Math.PI / 2]
-    ];
-    for (const [dx, dz, yaw] of checks) {
-      const c = this.getCell(gx + dx, gz + dz);
-      if (c && this.isRoadType(c.type) && c.connectedToGate) {
-        return yaw;
-      }
-    }
-    return null;
-  }
-
-  // BANGUNAN ARSITEKTUR DETAIL BERTEKSTUR + KAFE NONGKRONG OUTDOOR
-  _createBuildingMesh(gx, gz, zone, level, stage, wx, groundY, wz, facingYaw, metaOut) {
-    const group = new THREE.Group();
-
-    // Pondasi kavling agar tidak pernah mengambang di tanah miring
-    const plinth = new THREE.Mesh(
-      new THREE.BoxGeometry(3.6, 0.55, 3.6),
-      new THREE.MeshStandardMaterial({ color: zone === "R" ? 0x65a30d : 0x94a3b8, roughness: 0.85 })
-    );
-    plinth.position.y = -0.15;
-    plinth.receiveShadow = true;
-    group.add(plinth);
-
-    if (stage === "construction") {
-      const soilPad = new THREE.Mesh(
-        new THREE.BoxGeometry(3.1, 0.2, 3.1),
-        new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.9 })
-      );
-      soilPad.position.y = 0.16;
-
-      const scaffold = new THREE.Mesh(
-        new THREE.BoxGeometry(2.2, 1.5, 2.2),
-        new THREE.MeshStandardMaterial({ color: 0xf59e0b, wireframe: true })
-      );
-      scaffold.position.y = 0.95;
-      group.add(soilPad, scaffold);
-      group.position.set(wx, groundY, wz);
-      group.rotation.y = facingYaw;
-      return group;
-    }
-
-    if (zone === "R") {
-      if (level === 1) {
-        // RUMAH TAPAK TROPIS REALISTIS (Pagar depan, teras pilar, dinding plester, genteng, carport & toren)
-        const wallTones = [0xfef3c7, 0xf8fafc, 0xfde68a, 0xe0f2fe];
-        const wallMat = new THREE.MeshStandardMaterial({
-          map: this.gfx.textures.wallPlaster,
-          color: wallTones[(gx + gz) % wallTones.length],
-          roughness: 0.72
-        });
-
-        // Pagar rendah & pilar gerbang depan
-        const fenceMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
-        const fenceL = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.42, 0.12), fenceMat);
-        fenceL.position.set(-1.1, 0.32, 1.65);
-        const fenceR = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.42, 0.12), fenceMat);
-        fenceR.position.set(1.1, 0.32, 1.65);
-        group.add(fenceL, fenceR);
-
-        // Badan rumah utama
-        const body = new THREE.Mesh(new THREE.BoxGeometry(2.45, 1.45, 2.05), wallMat);
-        body.position.set(-0.15, 0.85, -0.15);
-        body.castShadow = true;
-        body.receiveShadow = true;
-
-        // Kusen jendela & pintu masuk kayu
-        const winPanel = new THREE.Mesh(new THREE.BoxGeometry(2.49, 0.68, 2.09), this.houseWinMat);
-        winPanel.position.set(-0.15, 0.88, -0.15);
-        const door = new THREE.Mesh(
-          new THREE.BoxGeometry(0.45, 0.95, 0.08),
-          new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 })
-        );
-        door.position.set(-0.2, 0.6, 0.89);
-
-        // Teras depan & 2 tiang penyangga
-        const porchRoof = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.14, 0.75), this.roofTileMat);
-        porchRoof.position.set(-0.2, 1.45, 1.15);
-        [-0.85, 0.45].forEach((px) => {
-          const col = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.3, 8), wallMat);
-          col.position.set(px, 0.78, 1.42);
-          group.add(col);
-        });
-
-        // Kanopi Carport samping
-        const carport = new THREE.Mesh(
-          new THREE.BoxGeometry(0.95, 0.08, 1.85),
-          new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 })
-        );
-        carport.position.set(1.22, 1.32, 0.15);
-
-        // Atap Genteng Limas + Listplank
-        const roof = new THREE.Mesh(new THREE.ConeGeometry(2.05, 1.05, 4), this.roofTileMat);
-        roof.rotation.y = Math.PI / 4;
-        roof.position.set(-0.15, 2.08, -0.15);
-        roof.castShadow = true;
-
-        // Toren air atap belakang
-        const toren = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.2, 0.2, 0.42, 10),
-          new THREE.MeshStandardMaterial({ color: (gx * gz) % 2 === 0 ? 0x0284c7 : 0xea580c })
-        );
-        toren.position.set(0.85, 1.75, -0.85);
-
-        group.add(body, winPanel, door, porchRoof, carport, roof, toren);
-      } else if (level === 2) {
-        // RUMAH CLUSTER MODERN 2 LANTAI + BALKON KACA
-        const body = new THREE.Mesh(new THREE.BoxGeometry(2.7, 2.65, 2.4), this.plasterMat);
-        body.position.set(0, 1.45, -0.1);
-        body.castShadow = true;
-
-        const stoneWall = new THREE.Mesh(
-          new THREE.BoxGeometry(0.95, 2.7, 2.48),
-          new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.75 })
-        );
-        stoneWall.position.set(-0.75, 1.47, -0.1);
-
-        const win = new THREE.Mesh(new THREE.BoxGeometry(2.74, 1.85, 2.44), this.houseWinMat);
-        win.position.set(0, 1.48, -0.1);
-
-        const balcony = new THREE.Mesh(
-          new THREE.BoxGeometry(1.55, 0.42, 0.62),
-          new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 })
-        );
-        balcony.position.set(0.45, 1.65, 1.25);
-
-        const roof = new THREE.Mesh(
-          new THREE.BoxGeometry(2.95, 0.24, 2.75),
-          new THREE.MeshStandardMaterial({ color: 0x1e293b })
-        );
-        roof.position.set(0, 2.88, -0.05);
-        group.add(body, stoneWall, win, balcony, roof);
-      } else {
-        // APARTEMEN & KONDOMINIUM BERTINGKAT
-        const floors = 7.0 + ((gx + gz) % 4) * 1.1;
-        const podium = new THREE.Mesh(
-          new THREE.BoxGeometry(3.15, 1.4, 3.15),
-          new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 })
-        );
-        podium.position.y = 0.8;
-
-        const tower = new THREE.Mesh(new THREE.BoxGeometry(2.65, floors, 2.65), this.plasterMat);
-        tower.position.y = 1.4 + floors / 2;
-        tower.castShadow = true;
-
-        const win = new THREE.Mesh(new THREE.BoxGeometry(2.69, floors * 0.9, 2.69), this.towerWinMat);
-        win.position.y = 1.4 + floors / 2;
-
-        const crown = new THREE.Mesh(
-          new THREE.BoxGeometry(2.85, 0.35, 2.85),
-          new THREE.MeshStandardMaterial({ color: 0x0284c7 })
-        );
-        crown.position.y = 1.4 + floors + 0.15;
-        group.add(podium, tower, win, crown);
-      }
-    } else if (zone === "C") {
-      if (level === 1) {
-        const isCafe = (gx * 7 + gz * 13) % 10 < 6; // ~60% jadi Kafe Nongkrong Outdoor!
-        if (isCafe) {
-          metaOut.isCafe = true;
-          // KAFE NONGKRONG OUTDOOR (Bangunan kayu-kaca, meja kursi teras, payung taman & lampu gantung)
-          const cafeDeck = new THREE.Mesh(
-            new THREE.BoxGeometry(3.45, 0.14, 3.45),
-            new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 })
-          );
-          cafeDeck.position.y = 0.16;
-
-          const cafeCabin = new THREE.Mesh(
-            new THREE.BoxGeometry(2.85, 1.75, 1.45),
-            new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.65 })
-          );
-          cafeCabin.position.set(0, 1.05, -0.85);
-          cafeCabin.castShadow = true;
-
-          const glassFront = new THREE.Mesh(new THREE.BoxGeometry(2.88, 1.25, 1.48), this.houseWinMat);
-          glassFront.position.set(0, 0.95, -0.85);
-
-          const signBoard = new THREE.Mesh(
-            new THREE.BoxGeometry(1.65, 0.36, 0.12),
-            new THREE.MeshStandardMaterial({
-              color: 0xf59e0b,
-              emissive: new THREE.Color(0xfbbf24),
-              emissiveIntensity: 0.75
-            })
-          );
-          signBoard.position.set(0, 2.08, -0.15);
-
-          // 3 Set Meja & Kursi Nongkrong + Payung Taman
-          const umbrellaCols = [0xdc2626, 0x0284c7, 0x16a34a];
-          [-0.95, 0.0, 0.95].forEach((tx, idx) => {
-            const table = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.28, 0.28, 0.05, 10),
-              new THREE.MeshStandardMaterial({ color: 0xfef3c7 })
-            );
-            table.position.set(tx, 0.56, 0.68);
-            const leg = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.04, 0.04, 0.36, 6),
-              new THREE.MeshStandardMaterial({ color: 0x1e293b })
-            );
-            leg.position.set(tx, 0.38, 0.68);
-            group.add(table, leg);
-
-            if (idx !== 1) {
-              const pole = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.03, 0.03, 1.45, 6),
-                new THREE.MeshStandardMaterial({ color: 0xf8fafc })
-              );
-              pole.position.set(tx, 0.92, 0.68);
-              const umbrella = new THREE.Mesh(
-                new THREE.ConeGeometry(0.58, 0.28, 8),
-                new THREE.MeshStandardMaterial({ color: umbrellaCols[(gx + idx) % 3] })
-              );
-              umbrella.position.set(tx, 1.65, 0.68);
-              group.add(pole, umbrella);
-            }
-          });
-
-          // Lampu gantung kafe hangat (warm string lights)
-          [-1.1, -0.4, 0.4, 1.1].forEach((lx) => {
-            const bulb = new THREE.Mesh(
-              new THREE.SphereGeometry(0.09, 6, 6),
-              new THREE.MeshBasicMaterial({ color: 0xfef08a })
-            );
-            bulb.position.set(lx, 1.85, 0.45);
-            group.add(bulb);
-          });
-
-          group.add(cafeDeck, cafeCabin, glassFront, signBoard);
-        } else {
-          // RUKO LOKAL 2 LANTAI BERKANOPI
-          const awningCols = [0x0284c7, 0xdc2626, 0x16a34a, 0xd97706];
-          const body = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.2, 2.45), this.plasterMat);
-          body.position.set(0, 1.2, -0.15);
-          body.castShadow = true;
-
-          const win = new THREE.Mesh(new THREE.BoxGeometry(2.84, 1.45, 2.49), this.houseWinMat);
-          win.position.set(0, 1.15, -0.15);
-
-          const awning = new THREE.Mesh(
-            new THREE.BoxGeometry(2.92, 0.24, 0.72),
-            new THREE.MeshStandardMaterial({ color: awningCols[(gx + gz) % awningCols.length] })
-          );
-          awning.position.set(0, 1.25, 1.25);
-          group.add(body, win, awning);
-        }
-      } else if (level === 2) {
-        // MALL & HOTEL MENENGAH
-        const body = new THREE.Mesh(
-          new THREE.BoxGeometry(3.0, 4.4, 2.8),
-          new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.42 })
-        );
-        body.position.y = 2.3;
-        body.castShadow = true;
-
-        const win = new THREE.Mesh(new THREE.BoxGeometry(3.04, 3.3, 2.84), this.towerWinMat);
-        win.position.y = 2.2;
-
-        const neonBand = new THREE.Mesh(
-          new THREE.BoxGeometry(3.08, 0.48, 2.88),
-          new THREE.MeshStandardMaterial({
-            color: 0x0284c7,
-            emissive: new THREE.Color(0x38bdf8),
-            emissiveIntensity: 0.65
+        // Tampilkan cincin radius jangkauan layanan!
+        const wp = this.gridToWorld(b.gx, b.gz);
+        const gy = this.engine.getHeightAt(wp.x, wp.z);
+        const radWorld = (SERVICE_RADII[tool] || 12) * this.cellSize;
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(radWorld - 0.5, radWorld, 48),
+          new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.65
           })
         );
-        neonBand.position.y = 4.15;
-        group.add(body, win, neonBand);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(wp.x, gy + 0.35, wp.z);
+        this.previewGroup.add(ring);
       } else {
-        // PENCAKAR LANGIT SCBD BERUNDANG + LAMPU MERCUSUAR
-        const height = 10.5 + ((gx * 3 + gz * 5) % 6) * 1.4;
-        const podium = new THREE.Mesh(
-          new THREE.BoxGeometry(3.25, 1.8, 3.25),
-          new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4 })
+        for (let gx = minX; gx <= maxX; gx++) {
+          for (let gz = minZ; gz <= maxZ; gz++) {
+            const c = this.getCell(gx, gz);
+            if (!c || c.type === "starter_highway") continue;
+            cells.push({ gx, gz });
+            validCount++;
+          }
+        }
+      }
+
+      const unitCost = TOOL_COSTS[tool] || 0;
+      const totalCost = unitCost * validCount;
+
+      const boxColor =
+        tool === "bulldoze"
+          ? 0xef4444
+          : tool === "zone_r"
+            ? 0x22c55e
+            : tool === "zone_c"
+              ? 0x3b82f6
+              : tool === "zone_i"
+                ? 0xeab308
+                : 0x38bdf8;
+
+      const mat = new THREE.MeshBasicMaterial({
+        color: boxColor,
+        transparent: true,
+        opacity: 0.45
+      });
+
+      cells.forEach((item) => {
+        const wp = this.gridToWorld(item.gx, item.gz);
+        const gy = this.engine.getHeightAt(wp.x, wp.z);
+        const isWide = tool === "road_4lane" && item.subGx !== undefined;
+        const m = new THREE.Mesh(
+          new THREE.BoxGeometry(
+            isWide && item.isVertical ? 7.8 : 3.8,
+            0.35,
+            isWide && !item.isVertical ? 7.8 : 3.8
+          ),
+          mat
         );
-        podium.position.y = 1.0;
-
-        const tower = new THREE.Mesh(new THREE.BoxGeometry(2.75, height, 2.75), this.towerWinMat);
-        tower.position.y = 1.8 + height / 2;
-        tower.castShadow = true;
-
-        const crown = new THREE.Mesh(
-          new THREE.BoxGeometry(2.2, 1.1, 2.2),
-          new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.25 })
+        m.position.set(
+          isWide && item.isVertical ? wp.x + 2 : wp.x,
+          gy + 0.25,
+          isWide && !item.isVertical ? wp.z + 2 : wp.z
         );
-        crown.position.y = 1.8 + height + 0.55;
+        this.previewGroup.add(m);
+      });
 
-        const spire = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.05, 0.12, 2.4, 6),
-          new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8 })
+      this.pendingBlueprint = {
+        toolId: tool,
+        shape: this.roadShape,
+        cells,
+        validCount,
+        spanW: maxX - minX + 1,
+        spanH: maxZ - minZ + 1,
+        totalCost
+      };
+      return this.pendingBlueprint;
+    }
+
+    confirmBlueprint(spendFn) {
+      const bp = this.pendingBlueprint;
+      if (!bp || bp.validCount === 0) return false;
+      if (bp.totalCost > 0 && !spendFn(bp.totalCost)) return false;
+
+      const tool = bp.toolId;
+
+      bp.cells.forEach((item) => {
+        const cell = this.getCell(item.gx, item.gz);
+        if (!cell) return;
+        const wp = this.gridToWorld(item.gx, item.gz);
+        const gy = this.engine.getHeightAt(wp.x, wp.z);
+
+        if (tool === "bulldoze") {
+          this._bulldozeCell(cell);
+          return;
+        }
+
+        if (this.isRoadTool(tool)) {
+          this._bulldozeCell(cell);
+          if (item.isPlaza) {
+            cell.type = "alun_plaza";
+            cell.mesh = this._createAlunPlazaMesh(wp.x, gy, wp.z);
+            this.rootGroup.add(cell.mesh);
+          } else if (tool === "road_4lane" && item.subGx !== undefined) {
+            const subCell = this.getCell(item.subGx, item.subGz);
+            if (subCell) this._bulldozeCell(subCell);
+
+            cell.type = "road_4lane";
+            cell.isVertical = item.isVertical;
+            if (subCell) {
+              subCell.type = "road_4lane_sub";
+              subCell.parentRoad = { gx: item.gx, gz: item.gz };
+            }
+
+            const cx = item.isVertical ? wp.x + 2 : wp.x;
+            const cz = item.isVertical ? wp.z : wp.z + 2;
+            const cgy = this.engine.getHeightAt(cx, cz);
+            this.engine.clearVegetationNear(cx, cz, 4.8);
+            cell.mesh = this._create4LaneRoadMesh(
+              cx,
+              cgy,
+              cz,
+              item.isVertical,
+              (item.gx + item.gz) % 5 === 0
+            );
+            this.rootGroup.add(cell.mesh);
+          } else {
+            cell.type = tool;
+            cell.oneWayDir = item.dir || null;
+            cell.hasSidewalkTrees = this.roadTreesEnabled;
+            this.engine.clearVegetationNear(wp.x, wp.z, 2.5);
+            cell.mesh = this._createSingleTileRoadMesh(cell, wp.x, gy, wp.z);
+            this.rootGroup.add(cell.mesh);
+          }
+          return;
+        }
+
+        if (this.isServiceTool(tool)) {
+          this._bulldozeCell(cell);
+          cell.type = tool;
+          this.engine.clearVegetationNear(wp.x, wp.z, 2.8);
+          cell.mesh = this._createServiceBuildingMesh(tool, item.gx, item.gz, wp.x, gy, wp.z);
+          this.rootGroup.add(cell.mesh);
+          return;
+        }
+
+        if (tool === "zone_clear") {
+          cell.zone = null;
+          if (cell.zoneMesh) {
+            this.rootGroup.remove(cell.zoneMesh);
+            cell.zoneMesh = null;
+          }
+          return;
+        }
+
+        if (tool.startsWith("zone_") && cell.type === "empty" && !cell.building) {
+          cell.zone = tool === "zone_r" ? "R" : tool === "zone_c" ? "C" : "I";
+          this._updateZoneOverlay(cell, wp.x, gy, wp.z);
+        }
+      });
+
+      this._recalculateNetworks();
+      if (this.smartLens) this.setSmartLens(this.smartLens);
+      this.clearBlueprint();
+      return true;
+    }
+
+    _bulldozeCell(cell) {
+      if (cell.type === "starter_highway") return;
+      if (cell.type === "road_4lane_sub" && cell.parentRoad) {
+        const parent = this.getCell(cell.parentRoad.gx, cell.parentRoad.gz);
+        if (parent) this._bulldozeCell(parent);
+        return;
+      }
+
+      if (cell.type === "road_4lane") {
+        // Bersihkan petak pendampingnya juga
+        for (const [dx, dz] of [[1, 0], [0, 1]]) {
+          const nb = this.getCell(cell.gx + dx, cell.gz + dz);
+          if (nb && nb.type === "road_4lane_sub" && nb.parentRoad?.gx === cell.gx && nb.parentRoad?.gz === cell.gz) {
+            nb.type = "empty";
+            nb.parentRoad = null;
+          }
+        }
+      }
+
+      if (cell.mesh) {
+        this.rootGroup.remove(cell.mesh);
+        cell.mesh = null;
+      }
+      if (cell.zoneMesh) {
+        this.rootGroup.remove(cell.zoneMesh);
+        cell.zoneMesh = null;
+      }
+      if (cell.building) {
+        this.rootGroup.remove(cell.building.mesh);
+        this.buildings = this.buildings.filter((b) => b !== cell.building);
+        cell.building = null;
+      }
+      cell.type = "empty";
+      cell.zone = null;
+      cell.parentRoad = null;
+    }
+
+    _updateZoneOverlay(cell, wx, gy, wz) {
+      if (cell.zoneMesh) {
+        this.rootGroup.remove(cell.zoneMesh);
+        cell.zoneMesh = null;
+      }
+      if (!cell.zone) return;
+
+      const color = cell.zone === "R" ? 0x22c55e : cell.zone === "C" ? 0x3b82f6 : 0xeab308;
+      const m = new THREE.Mesh(
+        new THREE.PlaneGeometry(3.75, 3.75),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.34,
+          side: THREE.DoubleSide
+        })
+      );
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(wx, gy + 0.12, wz);
+      cell.zoneMesh = m;
+      this.rootGroup.add(m);
+    }
+
+    // =========================================================
+    // SISTEM TERASERING & PONDASI BATU KALI OTOMATIS DI LERENG
+    // =========================================================
+    _buildTerracedPad(gx, gz, wx, gy, wz, lotHalf = 1.75) {
+      const group = new THREE.Group();
+      const h1 = this.engine.getHeightAt(wx - lotHalf, wz - lotHalf);
+      const h2 = this.engine.getHeightAt(wx + lotHalf, wz - lotHalf);
+      const h3 = this.engine.getHeightAt(wx - lotHalf, wz + lotHalf);
+      const h4 = this.engine.getHeightAt(wx + lotHalf, wz + lotHalf);
+
+      let roadY = gy;
+      let roadDir = null;
+      const dirs = [
+        { dx: 0, dz: 1 },
+        { dx: 0, dz: -1 },
+        { dx: 1, dz: 0 },
+        { dx: -1, dz: 0 }
+      ];
+      for (const d of dirs) {
+        const nb = this.getCell(gx + d.dx, gz + d.dz);
+        if (nb && (this.isRoadTool(nb.type) || nb.type === "road_4lane_sub" || nb.type === "starter_highway")) {
+          const rwp = this.gridToWorld(nb.gx, nb.gz);
+          roadY = this.engine.getHeightAt(rwp.x, rwp.z);
+          roadDir = d;
+          break;
+        }
+      }
+
+      const maxY = Math.max(gy, h1, h2, h3, h4, roadY);
+      const minY = Math.min(gy, h1, h2, h3, h4, roadY);
+      const slopeDiff = maxY - minY;
+
+      if (slopeDiff > 0.22) {
+        const wallHeight = slopeDiff + 0.95;
+        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.92 });
+        const trimMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.7 });
+
+        const plinth = new THREE.Mesh(
+          new THREE.BoxGeometry(lotHalf * 2, wallHeight, lotHalf * 2),
+          stoneMat
         );
-        spire.position.y = 1.8 + height + 2.2;
+        plinth.position.set(wx, maxY - wallHeight / 2, wz);
+        plinth.castShadow = true;
+        plinth.receiveShadow = true;
 
-        const beacon = new THREE.Mesh(
-          new THREE.SphereGeometry(0.14, 6, 6),
+        const cap = new THREE.Mesh(
+          new THREE.BoxGeometry(lotHalf * 2 + 0.12, 0.14, lotHalf * 2 + 0.12),
+          trimMat
+        );
+        cap.position.set(wx, maxY - 0.05, wz);
+
+        group.add(plinth, cap);
+
+        // Tangga akses beton jika lantai terasering lebih tinggi dari jalan
+        if (roadDir && maxY - roadY > 0.28) {
+          const steps = Math.min(6, Math.max(2, Math.round((maxY - roadY) / 0.25)));
+          for (let s = 0; s < steps; s++) {
+            const t = (s + 0.5) / steps;
+            const stepY = maxY - t * (maxY - roadY);
+            const stepMesh = new THREE.Mesh(
+              new THREE.BoxGeometry(0.95, 0.22, 0.35),
+              trimMat
+            );
+            stepMesh.position.set(
+              wx + roadDir.dx * (lotHalf + t * 0.45),
+              stepY,
+              wz + roadDir.dz * (lotHalf + t * 0.45)
+            );
+            group.add(stepMesh);
+          }
+        }
+      }
+
+      return { group, padY: maxY, isTerraced: slopeDiff > 0.22 };
+    }
+
+    _createAlunPlazaMesh(wx, gy, wz) {
+      const g = new THREE.Group();
+      const base = new THREE.Mesh(
+        new THREE.BoxGeometry(3.9, 0.18, 3.9),
+        new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.8 })
+      );
+      base.position.y = 0.09;
+      g.add(base);
+      g.position.set(wx, gy, wz);
+      return g;
+    }
+
+    _createServiceBuildingMesh(type, gx, gz, wx, gy, wz) {
+      const { group, padY } = this._buildTerracedPad(gx, gz, wx, gy, wz, 1.8);
+
+      if (type === "pln") {
+        const body = new THREE.Mesh(
+          new THREE.BoxGeometry(2.6, 1.8, 2.2),
+          new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.5 })
+        );
+        body.position.set(wx, padY + 0.9, wz);
+        const tower = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.28, 0.45, 3.6, 8),
+          new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.5 })
+        );
+        tower.position.set(wx + 0.7, padY + 1.8, wz - 0.5);
+        group.add(body, tower);
+      } else if (type === "pdam") {
+        const tank = new THREE.Mesh(
+          new THREE.CylinderGeometry(1.15, 1.15, 1.7, 16),
+          new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35 })
+        );
+        tank.position.set(wx, padY + 2.1, wz);
+        const legs = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.75, 0.95, 1.3, 8),
+          new THREE.MeshStandardMaterial({ color: 0x94a3b8 })
+        );
+        legs.position.set(wx, padY + 0.65, wz);
+        group.add(tank, legs);
+      } else if (type === "worship") {
+        // Masjid Agung / Rumah Ibadah Kubah Emas
+        const hall = new THREE.Mesh(
+          new THREE.BoxGeometry(2.8, 1.9, 2.8),
+          new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 })
+        );
+        hall.position.set(wx, padY + 0.95, wz);
+        const dome = new THREE.Mesh(
+          new THREE.SphereGeometry(1.05, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+          new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.6, roughness: 0.25 })
+        );
+        dome.position.set(wx, padY + 1.9, wz);
+        const minaret = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.18, 0.24, 3.8, 8),
+          new THREE.MeshStandardMaterial({ color: 0xe2e8f0 })
+        );
+        minaret.position.set(wx + 1.25, padY + 1.9, wz + 1.25);
+        group.add(hall, dome, minaret);
+      } else if (type === "school") {
+        const wing = new THREE.Mesh(
+          new THREE.BoxGeometry(3.2, 1.7, 1.8),
+          new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.6 })
+        );
+        wing.position.set(wx, padY + 0.85, wz);
+        const roof = new THREE.Mesh(
+          new THREE.ConeGeometry(2.35, 0.9, 4),
+          new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.75 })
+        );
+        roof.rotation.y = Math.PI / 4;
+        roof.position.set(wx, padY + 2.15, wz);
+        group.add(wing, roof);
+      } else if (type === "health") {
+        const hosp = new THREE.Mesh(
+          new THREE.BoxGeometry(2.9, 2.6, 2.4),
+          new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 })
+        );
+        hosp.position.set(wx, padY + 1.3, wz);
+        const cross1 = new THREE.Mesh(
+          new THREE.BoxGeometry(0.9, 0.28, 0.15),
           new THREE.MeshBasicMaterial({ color: 0xef4444 })
         );
-        beacon.position.y = 1.8 + height + 3.45;
-        this.aviationBeacons.push(beacon);
-        metaOut.beacon = beacon;
-
-        group.add(podium, tower, crown, spire, beacon);
-      }
-    } else if (zone === "I") {
-      if (level === 1) {
-        const body = new THREE.Mesh(new THREE.BoxGeometry(3.0, 1.75, 2.75), this.indMetalMat);
-        body.position.y = 0.98;
-        body.castShadow = true;
-
-        const roof = new THREE.Mesh(
-          new THREE.BoxGeometry(3.15, 0.22, 2.9),
-          new THREE.MeshStandardMaterial({ color: 0xd97706 })
+        cross1.position.set(wx, padY + 1.9, wz + 1.22);
+        const cross2 = new THREE.Mesh(
+          new THREE.BoxGeometry(0.28, 0.9, 0.15),
+          new THREE.MeshBasicMaterial({ color: 0xef4444 })
         );
-        roof.position.y = 1.94;
-        group.add(body, roof);
-      } else {
-        const h = level === 2 ? 2.6 : 3.8;
-        const body = new THREE.Mesh(new THREE.BoxGeometry(3.1, h, 2.95), this.indMetalMat);
-        body.position.y = 0.1 + h / 2;
-        body.castShadow = true;
-
-        const stack = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.24, 0.34, h + 2.4, 10),
-          new THREE.MeshStandardMaterial({ color: 0x334155 })
+        cross2.position.set(wx, padY + 1.9, wz + 1.22);
+        group.add(hosp, cross1, cross2);
+      } else if (type === "safety") {
+        const post = new THREE.Mesh(
+          new THREE.BoxGeometry(2.7, 1.8, 2.2),
+          new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.5 })
         );
-        stack.position.set(1.0, (h + 2.4) / 2, -0.9);
-        stack.castShadow = true;
-        group.add(body, stack);
+        post.position.set(wx, padY + 0.9, wz);
+        const siren = new THREE.Mesh(
+          new THREE.BoxGeometry(0.6, 0.25, 0.3),
+          new THREE.MeshBasicMaterial({ color: 0xef4444 })
+        );
+        siren.position.set(wx, padY + 1.92, wz);
+        group.add(post, siren);
+      } else if (type === "park") {
+        const lawn = new THREE.Mesh(
+          new THREE.BoxGeometry(3.6, 0.16, 3.6),
+          new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.85 })
+        );
+        lawn.position.set(wx, padY + 0.08, wz);
+        const fountain = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.85, 0.95, 0.35, 14),
+          new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.2 })
+        );
+        fountain.position.set(wx, padY + 0.25, wz);
+        group.add(lawn, fountain);
       }
+
+      return group;
     }
 
-    group.position.set(wx, groundY, wz);
-    group.rotation.y = facingYaw;
-    return group;
-  }
+    _createZoneBuildingMesh(gx, gz, zone, level, wx, gy, wz) {
+      const { group, padY, isTerraced } = this._buildTerracedPad(gx, gz, wx, gy, wz, 1.72);
+      let isCafe = false;
+      let winMat = null;
 
-  updateNightLighting(isNight) {
-    this.houseWinMat.emissiveIntensity = isNight ? 1.15 : 0.0;
-    this.towerWinMat.emissiveIntensity = isNight ? 1.25 : 0.0;
-    this.vehicles.forEach((v) => {
-      v.headlight.visible = isNight;
-    });
-  }
-
-  // WARGA 3D JALAN KAKI & NONGKRONG DI KAFE
-  _spawnPedestrianIfNeeded() {
-    if (this.pedestrians.length >= 65) return;
-    const walkCells = [];
-    for (let gx = 0; gx < this.gridSize; gx++) {
-      for (let gz = 0; gz < this.gridSize; gz++) {
-        const t = this.grid[gx][gz].type;
-        if (this.isRoadTool(t) && this.grid[gx][gz].connectedToGate) {
-          walkCells.push(this.grid[gx][gz]);
+      if (zone === "R") {
+        if (level === 1) {
+          const wall = new THREE.Mesh(
+            new THREE.BoxGeometry(2.2, 1.35, 2.0),
+            new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.75 })
+          );
+          wall.position.set(wx, padY + 0.68, wz);
+          wall.castShadow = true;
+          const roof = new THREE.Mesh(
+            new THREE.ConeGeometry(1.75, 0.95, 4),
+            new THREE.MeshStandardMaterial({ color: 0xc2410c, roughness: 0.8 })
+          );
+          roof.rotation.y = Math.PI / 4;
+          roof.position.set(wx, padY + 1.82, wz);
+          group.add(wall, roof);
+        } else if (level === 2) {
+          const house = new THREE.Mesh(
+            new THREE.BoxGeometry(2.5, 2.8, 2.3),
+            new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.55 })
+          );
+          house.position.set(wx, padY + 1.4, wz);
+          house.castShadow = true;
+          const roof = new THREE.Mesh(
+            new THREE.BoxGeometry(2.7, 0.3, 2.5),
+            new THREE.MeshStandardMaterial({ color: 0x334155 })
+          );
+          roof.position.set(wx, padY + 2.95, wz);
+          group.add(house, roof);
+        } else {
+          const h = 7.5 + ((gx * 7 + gz * 13) % 6);
+          winMat = new THREE.MeshStandardMaterial({
+            color: 0x38bdf8,
+            emissive: 0x0284c7,
+            emissiveIntensity: 0.15,
+            roughness: 0.25
+          });
+          const apt = new THREE.Mesh(new THREE.BoxGeometry(2.8, h, 2.8), winMat);
+          apt.position.set(wx, padY + h / 2, wz);
+          apt.castShadow = true;
+          group.add(apt);
         }
-      }
-    }
-    if (walkCells.length < 3) return;
-
-    const start = walkCells[Math.floor(Math.random() * walkCells.length)];
-    const pos = this.gridToWorld(start.gx, start.gz);
-    const sideOffset = (Math.random() > 0.5 ? 1 : -1) * 1.42;
-
-    const pedGroup = new THREE.Group();
-    const shirtCols = [0xef4444, 0x3b82f6, 0xf59e0b, 0x10b981, 0xf8fafc, 0x8b5cf6];
-    const torso = new THREE.Mesh(
-      new THREE.BoxGeometry(0.24, 0.34, 0.14),
-      new THREE.MeshStandardMaterial({ color: shirtCols[Math.floor(Math.random() * shirtCols.length)] })
-    );
-    torso.position.y = 0.46;
-
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.1, 8, 8),
-      new THREE.MeshStandardMaterial({ color: 0xfdba74 })
-    );
-    head.position.y = 0.72;
-
-    const legL = new THREE.Mesh(
-      new THREE.BoxGeometry(0.09, 0.3, 0.09),
-      new THREE.MeshStandardMaterial({ color: 0x1e293b })
-    );
-    legL.position.set(-0.06, 0.16, 0);
-    const legR = legL.clone();
-    legR.position.set(0.06, 0.16, 0);
-
-    pedGroup.add(torso, head, legL, legR);
-    const gy = this.gfx.getHeightAt(pos.x + sideOffset, pos.z);
-    pedGroup.position.set(pos.x + sideOffset, gy + 0.08, pos.z);
-    this.rootGroup.add(pedGroup);
-
-    this.pedestrians.push({
-      mesh: pedGroup,
-      legL,
-      legR,
-      gx: start.gx,
-      gz: start.gz,
-      prevGx: -1,
-      prevGz: -1,
-      sideOffset,
-      targetX: pos.x + sideOffset,
-      targetZ: pos.z,
-      phase: Math.random() * Math.PI * 2,
-      speed: 1.35 + Math.random() * 0.45
-    });
-  }
-
-  _updatePedestrians(delta) {
-    for (let i = this.pedestrians.length - 1; i >= 0; i--) {
-      const p = this.pedestrians[i];
-      const dx = p.targetX - p.mesh.position.x;
-      const dz = p.targetZ - p.mesh.position.z;
-      const dist = Math.hypot(dx, dz);
-
-      if (dist < 0.25) {
-        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-        const nextList = [];
-        for (const [ox, oz] of dirs) {
-          const nx = p.gx + ox;
-          const nz = p.gz + oz;
-          const nc = this.getCell(nx, nz);
-          if (nc && this.isRoadTool(nc.type) && !(nx === p.prevGx && nz === p.prevGz)) {
-            nextList.push(nc);
-          }
+      } else if (zone === "C") {
+        isCafe = (gx + gz) % 2 === 0;
+        if (level === 1) {
+          const shop = new THREE.Mesh(
+            new THREE.BoxGeometry(2.5, 1.65, 2.2),
+            new THREE.MeshStandardMaterial({ color: isCafe ? 0xf59e0b : 0x3b82f6, roughness: 0.55 })
+          );
+          shop.position.set(wx, padY + 0.82, wz);
+          shop.castShadow = true;
+          const canopy = new THREE.Mesh(
+            new THREE.BoxGeometry(2.65, 0.18, 0.9),
+            new THREE.MeshStandardMaterial({ color: 0xf8fafc })
+          );
+          canopy.position.set(wx, padY + 1.15, wz + 1.35);
+          group.add(shop, canopy);
+        } else if (level === 2) {
+          const ruko = new THREE.Mesh(
+            new THREE.BoxGeometry(2.7, 3.6, 2.5),
+            new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.45 })
+          );
+          ruko.position.set(wx, padY + 1.8, wz);
+          ruko.castShadow = true;
+          group.add(ruko);
+        } else {
+          const h = 10.5 + ((gx * 11 + gz * 5) % 9);
+          winMat = new THREE.MeshStandardMaterial({
+            color: 0x0ea5e9,
+            emissive: 0xfde047,
+            emissiveIntensity: 0.18,
+            metalness: 0.55,
+            roughness: 0.2
+          });
+          const tower = new THREE.Mesh(new THREE.BoxGeometry(2.9, h, 2.9), winMat);
+          tower.position.set(wx, padY + h / 2, wz);
+          tower.castShadow = true;
+          group.add(tower);
         }
-        if (nextList.length === 0) {
-          const back = this.getCell(p.prevGx, p.prevGz);
-          if (back && this.isRoadTool(back.type)) nextList.push(back);
-        }
-        if (nextList.length === 0) {
-          this.rootGroup.remove(p.mesh);
-          this.pedestrians.splice(i, 1);
-          continue;
-        }
-        const chosen = nextList[Math.floor(Math.random() * nextList.length)];
-        p.prevGx = p.gx;
-        p.prevGz = p.gz;
-        p.gx = chosen.gx;
-        p.gz = chosen.gz;
-        const wp = this.gridToWorld(chosen.gx, chosen.gz);
-        p.targetX = wp.x + p.sideOffset;
-        p.targetZ = wp.z + (Math.random() - 0.5) * 0.6;
       } else {
-        const step = Math.min(dist, p.speed * delta);
-        p.mesh.position.x += (dx / dist) * step;
-        p.mesh.position.z += (dz / dist) * step;
-        const gy = this.gfx.getHeightAt(p.mesh.position.x, p.mesh.position.z);
-        p.mesh.position.y = Math.max(1.02, gy + 0.08);
-        p.mesh.lookAt(p.targetX, p.mesh.position.y, p.targetZ);
-
-        p.phase += delta * 11;
-        p.legL.rotation.x = Math.sin(p.phase) * 0.55;
-        p.legR.rotation.x = -Math.sin(p.phase) * 0.55;
+        const h = level === 1 ? 1.8 : level === 2 ? 3.0 : 4.8;
+        const fac = new THREE.Mesh(
+          new THREE.BoxGeometry(2.9, h, 2.6),
+          new THREE.MeshStandardMaterial({ color: 0xca8a04, roughness: 0.7 })
+        );
+        fac.position.set(wx, padY + h / 2, wz);
+        fac.castShadow = true;
+        group.add(fac);
       }
-    }
-  }
 
-  _spawnVehicleIfNeeded() {
-    if (this.vehicles.length >= 44) return;
-    const roadCells = [];
-    for (let gx = 0; gx < this.gridSize; gx++) {
-      for (let gz = 0; gz < this.gridSize; gz++) {
-        if (this.isDrivableRoad(this.grid[gx][gz].type) && this.grid[gx][gz].connectedToGate) {
-          roadCells.push(this.grid[gx][gz]);
+      if (winMat) this.nightLights.push(winMat);
+      return { mesh: group, isCafe, isTerraced };
+    }
+
+    // =========================================================
+    // JARINGAN JALAN & CAKUPAN LAYANAN ALA THEOTOWN
+    // =========================================================
+    _isTraversableRoad(cell) {
+      if (!cell) return false;
+      return (
+        cell.type === "starter_highway" ||
+        cell.type === "road_4lane" ||
+        cell.type === "road_4lane_sub" ||
+        cell.type === "road_2lane" ||
+        cell.type === "road_1way_1" ||
+        cell.type === "road_1way_2" ||
+        cell.type === "alun_plaza"
+      );
+    }
+
+    _recalculateNetworks() {
+      const services = [];
+      let roadCount = 0;
+
+      for (let gx = 0; gx < this.gridSize; gx++) {
+        for (let gz = 0; gz < this.gridSize; gz++) {
+          const c = this.grid[gx][gz];
+          c.roadConnected = c.type === "starter_highway" || c.type === "road_4lane_sub";
+          c.coverage = {
+            power: false,
+            water: false,
+            worship: false,
+            school: false,
+            health: false,
+            safety: false,
+            park: false
+          };
+          if (this.isRoadTool(c.type)) roadCount++;
+          if (this.isServiceTool(c.type)) services.push(c);
         }
       }
-    }
-    if (roadCells.length < 4) return;
 
-    const start = roadCells[Math.floor(Math.random() * roadCells.length)];
-    const pos = this.gridToWorld(start.gx, start.gz);
-    const y = Math.max(1.05, this.gfx.getHeightAt(pos.x, pos.z) + 0.14);
-
-    const group = new THREE.Group();
-    const roll = Math.random();
-    let bodyColor = 0xf8fafc;
-    let isAngkot = false;
-    let isBike = false;
-
-    if (roll < 0.32) {
-      bodyColor = 0x0284c7;
-      isAngkot = true;
-    } else if (roll < 0.6) {
-      bodyColor = 0x1e293b;
-      isBike = true;
-    } else {
-      const carCols = [0xf8fafc, 0x94a3b8, 0x0f172a, 0xdc2626];
-      bodyColor = carCols[Math.floor(Math.random() * carCols.length)];
-    }
-
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(isBike ? 0.24 : 0.64, isBike ? 0.34 : 0.34, isBike ? 0.68 : 1.24),
-      new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.3 })
-    );
-    body.position.y = 0.22;
-    group.add(body);
-
-    if (!isBike) {
-      const cabin = new THREE.Mesh(
-        new THREE.BoxGeometry(0.56, 0.26, isAngkot ? 0.96 : 0.66),
-        new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.15, metalness: 0.6 })
-      );
-      cabin.position.set(0, 0.48, isAngkot ? -0.05 : -0.08);
-      group.add(cabin);
-    }
-
-    if (isAngkot) {
-      const stripe = new THREE.Mesh(
-        new THREE.BoxGeometry(0.66, 0.12, 1.26),
-        new THREE.MeshBasicMaterial({ color: 0xf8fafc })
-      );
-      stripe.position.y = 0.24;
-      group.add(stripe);
-    }
-
-    const headlight = new THREE.Mesh(
-      new THREE.BoxGeometry(isBike ? 0.18 : 0.48, 0.1, 0.08),
-      new THREE.MeshBasicMaterial({ color: 0xfef9c3 })
-    );
-    headlight.position.set(0, 0.22, isBike ? 0.35 : 0.63);
-    headlight.visible = this.gfx.clockHour < 5.5 || this.gfx.clockHour > 18.5;
-    group.add(headlight);
-
-    group.position.set(pos.x, y, pos.z);
-    this.rootGroup.add(group);
-
-    this.vehicles.push({
-      mesh: group,
-      headlight,
-      gx: start.gx,
-      gz: start.gz,
-      prevGx: -1,
-      prevGz: -1,
-      targetX: pos.x,
-      targetZ: pos.z,
-      speed: isBike ? 5.8 : 4.2
-    });
-  }
-
-  _updateVehicles(delta) {
-    for (let i = this.vehicles.length - 1; i >= 0; i--) {
-      const v = this.vehicles[i];
-      const dx = v.targetX - v.mesh.position.x;
-      const dz = v.targetZ - v.mesh.position.z;
-      const dist = Math.hypot(dx, dz);
-
-      if (dist < 0.28) {
-        const currCell = this.getCell(v.gx, v.gz);
-        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-        const candidates = [];
-
-        for (const [ox, oz] of dirs) {
-          if (
-            currCell &&
-            (currCell.type === "road_1way_1" || currCell.type === "road_1way_2") &&
-            currCell.oneWayDir
-          ) {
-            if (ox !== currCell.oneWayDir.dx || oz !== currCell.oneWayDir.dz) continue;
-          }
-          const nx = v.gx + ox;
-          const nz = v.gz + oz;
-          const nc = this.getCell(nx, nz);
-          if (nc && this.isDrivableRoad(nc.type) && !(nx === v.prevGx && nz === v.prevGz)) {
-            candidates.push(nc);
+      // BFS keterhubungan jalan dari Tol Antar-Kota
+      const queue = [];
+      for (let gx = 0; gx < this.gridSize; gx++) {
+        for (let gz = 0; gz < this.gridSize; gz++) {
+          if (this.grid[gx][gz].type === "starter_highway") {
+            queue.push(this.grid[gx][gz]);
           }
         }
+      }
 
-        if (candidates.length === 0) {
-          const back = this.getCell(v.prevGx, v.prevGz);
-          if (back && this.isDrivableRoad(back.type)) candidates.push(back);
+      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      while (queue.length > 0) {
+        const cur = queue.shift();
+        for (const [dx, dz] of dirs) {
+          const nb = this.getCell(cur.gx + dx, cur.gz + dz);
+          if (nb && !nb.roadConnected && this._isTraversableRoad(nb)) {
+            nb.roadConnected = true;
+            queue.push(nb);
+          }
         }
-        if (candidates.length === 0) {
+      }
+
+      // Sebar radius cakupan layanan publik
+      services.forEach((srv) => {
+        const rad = SERVICE_RADII[srv.type] || 12;
+        const keyMap = {
+          pln: "power",
+          pdam: "water",
+          worship: "worship",
+          school: "school",
+          health: "health",
+          safety: "safety",
+          park: "park"
+        };
+        const covKey = keyMap[srv.type];
+        if (!covKey) return;
+
+        for (let gx = Math.max(0, srv.gx - rad); gx <= Math.min(this.gridSize - 1, srv.gx + rad); gx++) {
+          for (let gz = Math.max(0, srv.gz - rad); gz <= Math.min(this.gridSize - 1, srv.gz + rad); gz++) {
+            if (Math.hypot(gx - srv.gx, gz - srv.gz) <= rad) {
+              this.grid[gx][gz].coverage[covKey] = true;
+            }
+          }
+        }
+      });
+
+      this._updateStatsAndBuildings(roadCount, services);
+    }
+
+    _updateStatsAndBuildings(roadCount, services) {
+      let pop = 0;
+      let rCount = 0;
+      let cCount = 0;
+      let iCount = 0;
+      let cafes = 0;
+      let unpowered = 0;
+      let unwatered = 0;
+
+      for (let gx = 0; gx < this.gridSize; gx++) {
+        for (let gz = 0; gz < this.gridSize; gz++) {
+          const c = this.grid[gx][gz];
+          const b = c.building;
+          if (!b) continue;
+
+          b.needs = { ...c.coverage };
+          if (!c.coverage.power) unpowered++;
+          if (!c.coverage.water) unwatered++;
+
+          if (b.zone === "R") {
+            rCount++;
+            b.pop = b.level === 1 ? 18 : b.level === 2 ? 85 : 340;
+            pop += b.pop;
+          } else if (b.zone === "C") {
+            cCount++;
+            if (b.isCafe) cafes++;
+          } else if (b.zone === "I") {
+            iCount++;
+          }
+
+          // Evaluasi alasan tertahan naik level
+          if (b.level === 1) {
+            const miss = [];
+            if (!c.coverage.power) miss.push("Listrik PLN");
+            if (!c.coverage.water) miss.push("Air PDAM");
+            if (!c.coverage.worship) miss.push("Tempat Ibadah");
+            b.upgradeBlockedReason =
+              miss.length > 0
+                ? `Butuh ${miss.join(", ")} untuk naik ke Level 2.`
+                : "Seluruh syarat Level 2 terpenuhi! Segera direnovasi.";
+          } else if (b.level === 2) {
+            const miss = [];
+            if (!c.coverage.school) miss.push("Pendidikan/Sekolah");
+            if (!c.coverage.health) miss.push("Kesehatan/RSUD");
+            if (!c.coverage.safety) miss.push("Keamanan/Polsek");
+            b.upgradeBlockedReason =
+              miss.length > 0
+                ? `Butuh ${miss.join(", ")} untuk naik ke Level 3.`
+                : "Syarat kota modern lengkap! Siap menuju Level 3.";
+          } else {
+            b.upgradeBlockedReason = "Bangunan sudah mencapai tingkat maksimal (Level 3).";
+          }
+        }
+      }
+
+      this.stats = {
+        completedResPop: pop,
+        rBuildings: rCount,
+        cBuildings: cCount,
+        iBuildings: iCount,
+        cafeCount: cafes,
+        roads: roadCount,
+        plnCount: services.filter((s) => s.type === "pln").length,
+        pdamCount: services.filter((s) => s.type === "pdam").length,
+        worshipCount: services.filter((s) => s.type === "worship").length,
+        schoolCount: services.filter((s) => s.type === "school").length,
+        healthCount: services.filter((s) => s.type === "health").length,
+        safetyCount: services.filter((s) => s.type === "safety").length,
+        parkCount: services.filter((s) => s.type === "park").length,
+        unpoweredCount: unpowered,
+        unwateredCount: unwatered
+      };
+    }
+
+    setSmartLens(lensKey) {
+      this.smartLens = lensKey;
+      while (this.lensGroup.children.length > 0) {
+        this.lensGroup.remove(this.lensGroup.children[0]);
+      }
+      if (!lensKey) return;
+
+      const matOk = new THREE.MeshBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.42 });
+      const matNo = new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.48 });
+
+      for (let gx = 0; gx < this.gridSize; gx++) {
+        for (let gz = 0; gz < this.gridSize; gz++) {
+          const c = this.grid[gx][gz];
+          if (!c.zone && !c.building) continue;
+          const hasCov = Boolean(c.coverage[lensKey]);
+          const wp = this.gridToWorld(gx, gz);
+          const gy = this.engine.getHeightAt(wp.x, wp.z);
+          const m = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.35, 3.7), hasCov ? matOk : matNo);
+          m.position.set(wp.x, gy + 0.3, wp.z);
+          this.lensGroup.add(m);
+        }
+      }
+    }
+
+    // =========================================================
+    // INSPEKSI BANGUNAN SAAT DIKETUK (Tap to Inspect)
+    // =========================================================
+    inspectAtWorld(wx, wz) {
+      const { gx, gz } = this.worldToGrid(wx, wz);
+      const cell = this.getCell(gx, gz);
+      if (!cell) return null;
+
+      if (cell.building) {
+        const b = cell.building;
+        const zoneNames = {
+          R: b.level === 1 ? "Rumah Tapak Perintis" : b.level === 2 ? "Rumah Cluster Modern" : "Apartemen Bertingkat",
+          C: b.isCafe ? "Kafe Nongkrong Nusantara" : b.level === 1 ? "Warung & Toko Kelontong" : b.level === 2 ? "Ruko Komersial" : "Menara Perkantoran",
+          I: b.level === 1 ? "Gudang Logistik Kecil" : b.level === 2 ? "Pabrik Manufaktur" : "Kawasan Industri Modern"
+        };
+        return {
+          badge: `Zona ${b.zone} • Level ${b.level}`,
+          title: zoneNames[b.zone],
+          stats:
+            b.zone === "R"
+              ? `Penghuni: ${b.pop} Jiwa${b.isTerraced ? " • Pondasi Terasering" : ""}`
+              : `Aktivitas Ekonomi Aktif${b.isTerraced ? " • Pondasi Terasering" : ""}`,
+          needs: b.needs,
+          tip: b.upgradeBlockedReason
+        };
+      }
+
+      if (this.isServiceTool(cell.type)) {
+        return {
+          badge: "Fasilitas Layanan Publik",
+          title: SERVICE_NAMES[cell.type] || cell.type,
+          stats: `Radius Jangkauan: ${SERVICE_RADII[cell.type] * 4} Meter`,
+          needs: null,
+          tip: "Melayani seluruh hunian & usaha di dalam radius jangkauan."
+        };
+      }
+
+      return null;
+    }
+
+    // =========================================================
+    // SIMULASI PERTUMBUHAN & LALU LINTAS LAJUR KIRI INDONESIA
+    // =========================================================
+    stepSimulation(delta, speed) {
+      this._simAccum += delta * speed;
+      if (this._simAccum >= 1.4) {
+        this._simAccum = 0;
+        this._growZonesStep();
+      }
+      this._stepTraffic(delta * speed);
+    }
+
+    _hasConnectedRoadNeighbor(gx, gz) {
+      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      for (const [dx, dz] of dirs) {
+        const nb = this.getCell(gx + dx, gz + dz);
+        if (nb && nb.roadConnected && this._isTraversableRoad(nb)) return true;
+      }
+      return false;
+    }
+
+    _growZonesStep() {
+      const candidates = [];
+      for (let gx = 0; gx < this.gridSize; gx++) {
+        for (let gz = 0; gz < this.gridSize; gz++) {
+          const c = this.grid[gx][gz];
+          if (c.zone && c.type === "empty" && this._hasConnectedRoadNeighbor(gx, gz)) {
+            candidates.push(c);
+          }
+        }
+      }
+
+      // Acak urutan agar pertumbuhan merata
+      candidates.sort(() => Math.random() - 0.5);
+
+      let builtThisTick = 0;
+      for (const cell of candidates) {
+        if (builtThisTick >= 4) break;
+        const wp = this.gridToWorld(cell.gx, cell.gz);
+        const gy = this.engine.getHeightAt(wp.x, wp.z);
+
+        if (!cell.building) {
+          this.engine.clearVegetationNear(wp.x, wp.z, 2.3);
+          const built = this._createZoneBuildingMesh(cell.gx, cell.gz, cell.zone, 1, wp.x, gy, wp.z);
+          this.rootGroup.add(built.mesh);
+          const bObj = {
+            zone: cell.zone,
+            level: 1,
+            stage: "done",
+            mesh: built.mesh,
+            isCafe: built.isCafe,
+            isTerraced: built.isTerraced,
+            pop: 18,
+            needs: { ...cell.coverage },
+            upgradeBlockedReason: ""
+          };
+          cell.building = bObj;
+          this.buildings.push(bObj);
+          builtThisTick++;
+        } else {
+          const b = cell.building;
+          const canLv2 = b.level === 1 && cell.coverage.power && cell.coverage.water && cell.coverage.worship;
+          const canLv3 =
+            b.level === 2 &&
+            canLv2 &&
+            cell.coverage.school &&
+            cell.coverage.health &&
+            cell.coverage.safety;
+
+          if (canLv2 || canLv3) {
+            const nextLv = b.level + 1;
+            this.rootGroup.remove(b.mesh);
+            const built = this._createZoneBuildingMesh(cell.gx, cell.gz, cell.zone, nextLv, wp.x, gy, wp.z);
+            this.rootGroup.add(built.mesh);
+            b.level = nextLv;
+            b.mesh = built.mesh;
+            b.isCafe = built.isCafe;
+            builtThisTick++;
+          }
+        }
+      }
+
+      if (builtThisTick > 0) {
+        this._recalculateNetworks();
+        if (this.smartLens) this.setSmartLens(this.smartLens);
+      }
+    }
+
+    _spawnVehicle(highwayOnly = false) {
+      const roadCells = [];
+      for (let gx = 0; gx < this.gridSize; gx++) {
+        for (let gz = 0; gz < this.gridSize; gz++) {
+          const c = this.grid[gx][gz];
+          if (highwayOnly) {
+            if (c.type === "starter_highway") roadCells.push(c);
+          } else if (c.roadConnected && this._isTraversableRoad(c) && c.type !== "road_4lane_sub") {
+            roadCells.push(c);
+          }
+        }
+      }
+      if (roadCells.length === 0) return;
+
+      const start = roadCells[Math.floor(Math.random() * roadCells.length)];
+      const dirs = [
+        { dx: 0, dz: 1 },
+        { dx: 0, dz: -1 },
+        { dx: 1, dz: 0 },
+        { dx: -1, dz: 0 }
+      ];
+      const validDirs = dirs.filter((d) => this._isTraversableRoad(this.getCell(start.gx + d.dx, start.gz + d.dz)));
+      if (validDirs.length === 0) return;
+
+      const dir = validDirs[Math.floor(Math.random() * validDirs.length)];
+      const colors = [0xef4444, 0xf8fafc, 0x0284c7, 0xfacc15, 0x1e293b];
+      const col = colors[Math.floor(Math.random() * colors.length)];
+
+      const car = new THREE.Mesh(
+        new THREE.BoxGeometry(0.85, 0.55, 1.45),
+        new THREE.MeshStandardMaterial({ color: col, roughness: 0.35 })
+      );
+      car.castShadow = true;
+      this.rootGroup.add(car);
+
+      const isWide = start.type === "starter_highway" || start.type === "road_4lane";
+      const laneOffset = isWide ? (Math.random() > 0.5 ? 1.15 : 2.55) : 0.95;
+
+      this.vehicles.push({
+        mesh: car,
+        gx: start.gx,
+        gz: start.gz,
+        dirX: dir.dx,
+        dirZ: dir.dz,
+        progress: 0.1,
+        laneOffset,
+        speed: isWide ? 11 : 7.5,
+        highwayOnly
+      });
+    }
+
+    _stepTraffic(dt) {
+      if (dt <= 0) return;
+      const targetVehicles = Math.min(
+        45,
+        3 + Math.floor(this.stats.completedResPop / 55) + this.stats.cBuildings * 2
+      );
+
+      while (this.vehicles.length < targetVehicles) {
+        this._spawnVehicle(this.stats.completedResPop === 0);
+      }
+      while (this.vehicles.length > targetVehicles) {
+        const rem = this.vehicles.pop();
+        this.rootGroup.remove(rem.mesh);
+      }
+
+      for (let i = this.vehicles.length - 1; i >= 0; i--) {
+        const v = this.vehicles[i];
+        const cell = this.getCell(v.gx, v.gz);
+        if (!cell || !this._isTraversableRoad(cell)) {
           this.rootGroup.remove(v.mesh);
           this.vehicles.splice(i, 1);
           continue;
         }
 
-        const next = candidates[Math.floor(Math.random() * candidates.length)];
-        v.prevGx = v.gx;
-        v.prevGz = v.gz;
-        v.gx = next.gx;
-        v.gz = next.gz;
-        const nextPos = this.gridToWorld(next.gx, next.gz);
-        v.targetX = nextPos.x + (Math.random() - 0.5) * 0.35;
-        v.targetZ = nextPos.z + (Math.random() - 0.5) * 0.35;
-      } else {
-        const step = Math.min(dist, v.speed * delta);
-        v.mesh.position.x += (dx / dist) * step;
-        v.mesh.position.z += (dz / dist) * step;
-        const groundY = this.gfx.getHeightAt(v.mesh.position.x, v.mesh.position.z);
-        v.mesh.position.y = Math.max(1.05, groundY + 0.14);
-        v.mesh.lookAt(v.targetX, v.mesh.position.y, v.targetZ);
-      }
-    }
-  }
-
-  stepSimulation(delta, simSpeed) {
-    if (simSpeed <= 0) return;
-
-    // Kedip lampu puncak gedung pencakar langit
-    const blinkOn = Math.sin(performance.now() * 0.006) > 0;
-    this.aviationBeacons.forEach((b) => {
-      b.visible = blinkOn;
-    });
-
-    for (let attempt = 0; attempt < 4; attempt++) {
-      if (Math.random() >= 0.28 * simSpeed) continue;
-      const gx = Math.floor(Math.random() * this.gridSize);
-      const gz = Math.floor(Math.random() * this.gridSize);
-      const cell = this.grid[gx][gz];
-      const facingYaw = cell && cell.zone ? this._getRoadFacingYaw(gx, gz) : null;
-
-      if (cell && cell.zone && facingYaw !== null) {
-        const pos = this.gridToWorld(gx, gz);
-        const y = this.gfx.getHeightAt(pos.x, pos.z);
-
-        if (!cell.building) {
-          const meta = {};
-          const mesh = this._createBuildingMesh(gx, gz, cell.zone, 1, "construction", pos.x, y, pos.z, facingYaw, meta);
-          this.rootGroup.add(mesh);
-          const b = { zone: cell.zone, level: 1, stage: "construction", facingYaw, mesh };
-          cell.building = b;
-          this.buildings.push(b);
-          this.gfx.clearVegetationNear(pos.x, pos.z, 2.4);
-          this._recalculateNetworks();
-        } else if (cell.building.stage === "construction") {
-          this.rootGroup.remove(cell.building.mesh);
-          const meta = {};
-          const mesh = this._createBuildingMesh(gx, gz, cell.zone, 1, "built", pos.x, y, pos.z, cell.building.facingYaw, meta);
-          this.rootGroup.add(mesh);
-          cell.building.mesh = mesh;
-          cell.building.stage = "built";
-          cell.building.isCafe = Boolean(meta.isCafe);
-          if (cell.zoneMesh) {
-            this.rootGroup.remove(cell.zoneMesh);
-            cell.zoneMesh = null;
+        // Sensor anti-tabrakan dengan kendaraan di depan pada jalur sama
+        let blocked = false;
+        for (let j = 0; j < this.vehicles.length; j++) {
+          if (i === j) continue;
+          const other = this.vehicles[j];
+          if (other.dirX === v.dirX && other.dirZ === v.dirZ && Math.abs(other.laneOffset - v.laneOffset) < 0.7) {
+            const dist = v.mesh.position.distanceTo(other.mesh.position);
+            if (dist < 2.9) {
+              const toOtherX = other.mesh.position.x - v.mesh.position.x;
+              const toOtherZ = other.mesh.position.z - v.mesh.position.z;
+              if (toOtherX * v.dirX + toOtherZ * v.dirZ > 0) {
+                blocked = true;
+                break;
+              }
+            }
           }
-          this._recalculateNetworks();
-        } else if (
-          cell.building.stage === "built" &&
-          cell.building.level < 3 &&
-          cell.powered &&
-          cell.watered &&
-          Math.random() < 0.14
-        ) {
-          cell.building.level += 1;
-          this.rootGroup.remove(cell.building.mesh);
-          const meta = {};
-          const mesh = this._createBuildingMesh(
-            gx,
-            gz,
-            cell.zone,
-            cell.building.level,
-            "built",
-            pos.x,
-            y,
-            pos.z,
-            cell.building.facingYaw,
-            meta
-          );
-          this.rootGroup.add(mesh);
-          cell.building.mesh = mesh;
-          cell.building.isCafe = false;
-          cell.building.beacon = meta.beacon || null;
-          this._recalculateNetworks();
         }
+
+        if (!blocked) {
+          v.progress += (v.speed * dt) / this.cellSize;
+        }
+
+        if (v.progress >= 1.0) {
+          v.progress -= 1.0;
+          v.gx += v.dirX;
+          v.gz += v.dirZ;
+
+          const nextCell = this.getCell(v.gx, v.gz);
+          if (!nextCell || !this._isTraversableRoad(nextCell)) {
+            this.rootGroup.remove(v.mesh);
+            this.vehicles.splice(i, 1);
+            continue;
+          }
+
+          // Pilih arah lanjutan (hindari putar balik langsung kecuali jalan buntu)
+          const candDirs = [
+            { dx: 0, dz: 1 },
+            { dx: 0, dz: -1 },
+            { dx: 1, dz: 0 },
+            { dx: -1, dz: 0 }
+          ].filter((d) => {
+            if (d.dx === -v.dirX && d.dz === -v.dirZ) return false;
+            return this._isTraversableRoad(this.getCell(v.gx + d.dx, v.gz + d.dz));
+          });
+
+          if (candDirs.length > 0) {
+            const straight = candDirs.find((d) => d.dx === v.dirX && d.dz === v.dirZ);
+            const chosen = straight && Math.random() < 0.75 ? straight : candDirs[Math.floor(Math.random() * candDirs.length)];
+            v.dirX = chosen.dx;
+            v.dirZ = chosen.dz;
+          } else {
+            v.dirX = -v.dirX;
+            v.dirZ = -v.dirZ;
+          }
+        }
+
+        // ATURAN LAJUR KIRI INDONESIA: left = (dirZ, -dirX)
+        const wp = this.gridToWorld(v.gx, v.gz);
+        const isWide = cell.type === "starter_highway" || cell.type === "road_4lane" || cell.type === "road_4lane_sub";
+        const baseX = isWide && cell.type !== "road_4lane_sub" ? wp.x + 2 : wp.x;
+        const baseZ = wp.z;
+
+        const leftX = v.dirZ;
+        const leftZ = -v.dirX;
+        const wx = baseX + (v.progress - 0.5) * this.cellSize * v.dirX + leftX * v.laneOffset;
+        const wz = baseZ + (v.progress - 0.5) * this.cellSize * v.dirZ + leftZ * v.laneOffset;
+        const gy = this.engine.getHeightAt(wx, wz);
+
+        v.mesh.position.set(wx, gy + 0.36, wz);
+        v.mesh.rotation.y = Math.atan2(v.dirX, v.dirZ);
       }
     }
 
-    const r = this.stats.rBuildings;
-    const c = this.stats.cBuildings;
-    const i = this.stats.iBuildings;
-    this.demand.R = Math.max(15, Math.min(95, 72 + (c + i) * 3 - r * 2));
-    this.demand.C = Math.max(10, Math.min(95, 30 + r * 3 - c * 4));
-    this.demand.I = Math.max(10, Math.min(95, 45 + r * 2 - i * 3));
-
-    if (Math.random() < 0.1 * simSpeed) this._spawnVehicleIfNeeded();
-    if (Math.random() < 0.14 * simSpeed) this._spawnPedestrianIfNeeded();
-    this._updateVehicles(delta * simSpeed);
-    this._updatePedestrians(delta * simSpeed);
+    updateNightLighting(isNight) {
+      const intensity = isNight ? 0.9 : 0.14;
+      for (const m of this.nightLights) {
+        m.emissiveIntensity = intensity;
+      }
+    }
   }
-}
+
+  window.CityRCISystem = CityRCISystem;
+})();
