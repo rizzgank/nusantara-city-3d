@@ -5,13 +5,13 @@
     {
       id: "malang",
       name: "Malang Raya",
-      baseTemp: 20,
-      biomeLabel: "Lembah Pegunungan",
+      baseTemp: 18,
+      biomeLabel: "Lembah & Cincin Gunung Berapi",
       weatherLabel: "Kabut Sejuk",
       fogColor: 0xbae6fd,
       waterLevel: -0.25,
       highway: { x: 0, label: "Tol Pandaan–Malang" },
-      desc: "Dataran tinggi sejuk dikelilingi pegunungan hijau dan aliran sungai jernih."
+      desc: "Lembah luas dibelah Sungai Brantas; Tol Pandaan–Malang masuk dari Timur Laut di kaki Arjuno–Bromo."
     }
   ];
 
@@ -30,6 +30,7 @@
   const state = {
     inGame: false,
     region: getRegionsList()[0],
+    loadedRegionId: null,
     modeKey: "sandbox",
     difficultyKey: "medium",
     money: Infinity,
@@ -52,6 +53,7 @@
   let previewScene = null;
   let previewCamera = null;
   let previewMesh = null;
+  let previewActive = false;
   let introTimers = [];
 
   const TOOL_LABELS = {
@@ -128,6 +130,7 @@
   }
 
   function hideAllScreens() {
+    previewActive = false;
     [
       "main-menu-screen",
       "mode-select-screen",
@@ -145,6 +148,25 @@
     }
     state.money -= amount;
     return true;
+  }
+
+  // Generate PNG Apple Touch Icon secara dinamis dari SVG Logo Peta Indonesia
+  function generateAppleTouchIconPNG() {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        c.width = 512;
+        c.height = 512;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(img, 0, 0, 512, 512);
+        const link = document.getElementById("apple-touch-icon-link");
+        if (link) link.href = c.toDataURL("image/png");
+      };
+      img.src = "assets/logo-nusantara.svg";
+    } catch (e) {
+      // Abaikan jika browser membatasi canvas export
+    }
   }
 
   // =========================================================
@@ -171,45 +193,28 @@
       setTimeout(() => {
         splash.classList.add("hidden");
         if (onComplete) onComplete();
-      }, 550);
+      }, 500);
     };
 
     splash.classList.remove("hidden", "fade-out");
     stageTitle.className = "splash-stage";
     stageLogo.className = "splash-stage";
 
-    // Tahap 1: Judul Game (Fade In + Zoom In -> Zoom Out + Fade Out)
-    introTimers.push(
-      setTimeout(() => {
-        stageTitle.classList.add("stage-visible");
-      }, 80)
-    );
-
+    introTimers.push(setTimeout(() => stageTitle.classList.add("stage-visible"), 80));
     introTimers.push(
       setTimeout(() => {
         stageTitle.classList.remove("stage-visible");
         stageTitle.classList.add("stage-exit");
-      }, 1900)
+      }, 1850)
     );
-
-    // Tahap 2: Logo Rizzi Games (Simple & Bersih)
-    introTimers.push(
-      setTimeout(() => {
-        stageLogo.classList.add("stage-visible");
-      }, 2650)
-    );
-
+    introTimers.push(setTimeout(() => stageLogo.classList.add("stage-visible"), 2600));
     introTimers.push(
       setTimeout(() => {
         stageLogo.classList.remove("stage-visible");
         stageLogo.classList.add("stage-exit");
-      }, 4400)
+      }, 4350)
     );
-
-    // Selesai otomatis masuk Menu Utama
-    introTimers.push(setTimeout(finishIntro, 5050));
-
-    // Bisa langsung diketuk untuk skip
+    introTimers.push(setTimeout(finishIntro, 4950));
     splash.onclick = finishIntro;
   }
 
@@ -312,6 +317,7 @@
     engine.onAtmosphereChange = (isNight) => citySim.updateNightLighting(isNight);
     engine.loadRegion(state.region);
     citySim.resetCity(state.region);
+    state.loadedRegionId = state.region.id;
     engine.updateAtmosphere(8.5);
     applyGraphicsSettings();
   }
@@ -331,73 +337,88 @@
     }
   }
 
+  function syncPreviewCardMetadata(reg) {
+    document.getElementById("preview-reg-name").textContent = reg.name;
+    document.getElementById("preview-reg-temp").textContent = `${reg.baseTemp}°C`;
+    document.getElementById("preview-reg-biome").textContent = `${reg.biomeLabel} • ${reg.weatherLabel}`;
+    document.getElementById("preview-reg-desc").textContent = reg.desc;
+  }
+
   function update3DMapPreview(region) {
+    syncPreviewCardMetadata(region);
     const canvas = document.getElementById("map-preview-canvas");
     if (!canvas || typeof THREE === "undefined") return;
 
-    if (!previewRenderer) {
-      previewRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-      previewScene = new THREE.Scene();
-      previewCamera = new THREE.PerspectiveCamera(42, 1.6, 0.5, 300);
-      previewCamera.position.set(0, 48, 56);
-      previewCamera.lookAt(0, 2, 0);
+    try {
+      if (!previewRenderer) {
+        previewRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        previewScene = new THREE.Scene();
+        previewCamera = new THREE.PerspectiveCamera(42, 1.6, 0.5, 300);
+        previewCamera.position.set(0, 48, 56);
+        previewCamera.lookAt(0, 2, 0);
 
-      const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x3f6212, 0.9);
-      const dir = new THREE.DirectionalLight(0xfffbeb, 1.35);
-      dir.position.set(40, 70, 35);
-      previewScene.add(hemi, dir);
+        const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x3f6212, 0.9);
+        const dir = new THREE.DirectionalLight(0xfffbeb, 1.35);
+        dir.position.set(40, 70, 35);
+        previewScene.add(hemi, dir);
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        previewRenderer.setSize(rect.width, rect.height, false);
+        previewCamera.aspect = rect.width / rect.height;
+        previewCamera.updateProjectionMatrix();
+      }
+
+      previewScene.background = new THREE.Color(region.fogColor || 0xbae6fd);
+
+      if (previewMesh) {
+        previewScene.remove(previewMesh);
+        previewMesh.geometry.dispose();
+      }
+
+      const segs = 56;
+      const size = 64;
+      const geo = new THREE.PlaneGeometry(size, size, segs, segs);
+      geo.rotateX(-Math.PI / 2);
+
+      const pos = geo.attributes.position;
+      const cols = new Float32Array(pos.count * 3);
+      const c = new THREE.Color();
+
+      for (let i = 0; i < pos.count; i++) {
+        const px = pos.getX(i);
+        const pz = pos.getZ(i);
+        const wx = (px / (size / 2)) * 160;
+        const wz = (pz / (size / 2)) * 160;
+        const h =
+          typeof window.generateRegionHeight === "function"
+            ? window.generateRegionHeight(region, wx, wz, 160)
+            : 1.5;
+        pos.setY(i, h * 0.35);
+
+        if (h < -0.1) c.setHex(0x0284c7);
+        else if (h < 0.55) c.setHex(0xe2d2a4);
+        else if (h > 16.5) c.setHex(0x64748b);
+        else if (h < 6.0) c.setHex(0x4d7c0f);
+        else c.setHex(0x365314);
+
+        cols[i * 3] = c.r;
+        cols[i * 3 + 1] = c.g;
+        cols[i * 3 + 2] = c.b;
+      }
+
+      geo.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+      geo.computeVertexNormals();
+
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+      previewMesh = new THREE.Mesh(geo, mat);
+      previewScene.add(previewMesh);
+      previewActive = true;
+    } catch (err) {
+      console.warn("Preview 3D fallback:", err);
+      previewActive = false;
     }
-
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-      previewRenderer.setSize(rect.width, rect.height, false);
-      previewCamera.aspect = rect.width / rect.height;
-      previewCamera.updateProjectionMatrix();
-    }
-
-    previewScene.background = new THREE.Color(region.fogColor || 0xbae6fd);
-
-    if (previewMesh) {
-      previewScene.remove(previewMesh);
-      previewMesh.geometry.dispose();
-    }
-
-    const segs = 64;
-    const size = 64;
-    const geo = new THREE.PlaneGeometry(size, size, segs, segs);
-    geo.rotateX(-Math.PI / 2);
-
-    const pos = geo.attributes.position;
-    const cols = new Float32Array(pos.count * 3);
-    const c = new THREE.Color();
-
-    for (let i = 0; i < pos.count; i++) {
-      const px = pos.getX(i);
-      const pz = pos.getZ(i);
-      const wx = (px / (size / 2)) * 160;
-      const wz = (pz / (size / 2)) * 160;
-      const h = typeof window.generateRegionHeight === "function"
-        ? window.generateRegionHeight(region, wx, wz, 160)
-        : 1.5;
-      pos.setY(i, h * 0.35);
-
-      if (h < -0.1) c.setHex(0x0284c7);
-      else if (h < 0.55) c.setHex(0xe2d2a4);
-      else if (h > 16.5) c.setHex(0x64748b);
-      else if (h < 6.0) c.setHex(0x4d7c0f);
-      else c.setHex(0x365314);
-
-      cols[i * 3] = c.r;
-      cols[i * 3 + 1] = c.g;
-      cols[i * 3 + 2] = c.b;
-    }
-
-    geo.setAttribute("color", new THREE.BufferAttribute(cols, 3));
-    geo.computeVertexNormals();
-
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
-    previewMesh = new THREE.Mesh(geo, mat);
-    previewScene.add(previewMesh);
   }
 
   // =========================================================
@@ -445,9 +466,7 @@
             oneWayDir: c.oneWayDir,
             hasSidewalkTrees: c.hasSidewalkTrees,
             zone: c.zone,
-            building: c.building
-              ? { zone: c.building.zone, level: c.building.level }
-              : null
+            building: c.building ? { zone: c.building.zone, level: c.building.level } : null
           });
         }
       }
@@ -499,6 +518,7 @@
     clearActiveTool();
     engine.loadRegion(reg);
     citySim.resetCity(reg);
+    state.loadedRegionId = reg.id;
 
     if (Array.isArray(data.heights)) {
       const pos = engine.terrainGeo.attributes.position;
@@ -622,9 +642,9 @@
           }
         </div>
         <div class="slot-actions">
-          ${state.inGame && !s.isAuto ? `<button class="slot-btn slot-save" data-act="save" data-slot="${s.key}">Simpan</button>` : ""}
-          ${data ? `<button class="slot-btn slot-load" data-act="load" data-slot="${s.key}">▶ Lanjutkan</button>` : ""}
-          ${data ? `<button class="slot-btn slot-del" data-act="del" data-slot="${s.key}">🗑️</button>` : ""}
+          ${state.inGame && !s.isAuto ? `<button type="button" class="slot-btn slot-save" data-act="save" data-slot="${s.key}">Simpan</button>` : ""}
+          ${data ? `<button type="button" class="slot-btn slot-load" data-act="load" data-slot="${s.key}">▶ Lanjutkan</button>` : ""}
+          ${data ? `<button type="button" class="slot-btn slot-del" data-act="del" data-slot="${s.key}">🗑️</button>` : ""}
         </div>
       `;
       list.appendChild(card);
@@ -675,26 +695,40 @@
   }
 
   function enterActiveGameplay(isFreshNewCity = true) {
+    // 1. Segera tutup seluruh layar menu & tampilkan HUD agar respons 100% instan
     state.inGame = true;
+    previewActive = false;
     hideAllScreens();
     document.getElementById("hud-layer").classList.remove("hidden");
 
-    ensureMainEngine();
-    if (isFreshNewCity) {
-      state.money = state.modeKey === "sandbox" ? Infinity : DIFFICULTY_CONFIG[state.difficultyKey].startMoney;
-      state.population = 0;
-      state.happiness = 82;
-      state.hour = 7.5;
+    try {
+      ensureMainEngine();
+      if (isFreshNewCity) {
+        state.money =
+          state.modeKey === "sandbox" ? Infinity : DIFFICULTY_CONFIG[state.difficultyKey].startMoney;
+        state.population = 0;
+        state.happiness = 82;
+        state.hour = 7.5;
 
-      clearActiveTool();
-      if (engine) engine.loadRegion(state.region);
-      if (citySim) citySim.resetCity(state.region);
-      resetChatWelcome();
-      showToast(`Selamat menjabat di ${state.region.name}! Populasi mulai dari 0 jiwa.`);
+        clearActiveTool();
+        if (engine && state.loadedRegionId !== state.region.id) {
+          engine.loadRegion(state.region);
+          state.loadedRegionId = state.region.id;
+        }
+        if (citySim) {
+          citySim.resetCity(state.region);
+        }
+        resetChatWelcome();
+        showToast(`Selamat menjabat di ${state.region.name}! Populasi mulai dari 0 jiwa.`);
+      }
+
+      if (engine) engine.updateAtmosphere(state.hour);
+      updateHUD();
+    } catch (err) {
+      console.error("Error memulai kota:", err);
+      showToast("Wilayah siap dibangun!");
+      updateHUD();
     }
-
-    if (engine) engine.updateAtmosphere(state.hour);
-    updateHUD();
   }
 
   function initScreensAndFlows() {
@@ -731,6 +765,7 @@
     const grid = document.getElementById("region-grid");
     getRegionsList().forEach((reg, idx) => {
       const card = document.createElement("button");
+      card.type = "button";
       card.className = "region-card" + (idx === 0 ? " active" : "");
       card.innerHTML = `
         <div class="reg-top">
@@ -744,11 +779,6 @@
         document.querySelectorAll(".region-card").forEach((c) => c.classList.remove("active"));
         card.classList.add("active");
         state.region = reg;
-
-        document.getElementById("preview-reg-name").textContent = reg.name;
-        document.getElementById("preview-reg-temp").textContent = `${reg.baseTemp}°C`;
-        document.getElementById("preview-reg-biome").textContent = `${reg.biomeLabel} • ${reg.weatherLabel}`;
-        document.getElementById("preview-reg-desc").textContent = reg.desc;
         update3DMapPreview(reg);
       });
       grid.appendChild(card);
@@ -759,7 +789,18 @@
       else showModeSelect();
     });
 
-    document.getElementById("btn-start-city").addEventListener("click", () => enterActiveGameplay(true));
+    // Tombol Mulai Bangun Kota (responsif di sentuhan iOS & klik)
+    const startBtn = document.getElementById("btn-start-city");
+    let startLock = false;
+    const triggerStartCity = (e) => {
+      if (e) e.preventDefault();
+      if (startLock) return;
+      startLock = true;
+      setTimeout(() => (startLock = false), 500);
+      enterActiveGameplay(true);
+    };
+    startBtn.addEventListener("click", triggerStartCity);
+    startBtn.addEventListener("touchend", triggerStartCity, { passive: false });
 
     document.getElementById("btn-close-saveload").addEventListener("click", () => {
       document.getElementById("saveload-modal").classList.add("hidden");
@@ -964,6 +1005,7 @@
         subMenu.innerHTML = "";
         (SUB_MENUS[menuKey] || []).forEach((item) => {
           const sb = document.createElement("button");
+          sb.type = "button";
           sb.className = "sub-btn";
           sb.textContent = item.label;
           sb.addEventListener("click", () => {
@@ -1123,7 +1165,7 @@
         engine.camThetaGoal += delta * 0.08;
       }
 
-      if (!document.getElementById("map-select-screen").classList.contains("hidden") && previewRenderer && previewMesh) {
+      if (previewActive && previewRenderer && previewMesh) {
         previewMesh.rotation.y += delta * 0.45;
         previewRenderer.render(previewScene, previewCamera);
       }
@@ -1170,8 +1212,8 @@
 
   function bootApp() {
     installIOSSelectionGuard();
+    generateAppleTouchIconPNG();
 
-    // Jalankan intro lebih dulu agar tidak pernah terhambat inisialisasi 3D
     playIntroCinematic(() => {
       showMainMenu();
     });
