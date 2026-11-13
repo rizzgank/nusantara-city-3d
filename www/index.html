@@ -8,15 +8,18 @@
   <meta name="apple-mobile-web-app-title" content="City Building : Nusantara" />
   <title>City Building : Nusantara — Rizzi Games</title>
   <link rel="icon" type="image/svg+xml" href="assets/logo-nusantara.svg" />
-  <link id="apple-touch-icon-link" rel="apple-touch-icon" href="assets/logo-nusantara.svg" />
   <link rel="stylesheet" href="css/style.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="js/three.min.js"></script>
+  <script>
+    if (typeof THREE === "undefined") {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
 </head>
 <body>
-  <!-- KANVAS DUNIA 3D UTAMA -->
   <canvas id="game-canvas"></canvas>
 
-  <!-- 1. INTRO SINEMATIK SIMPEL & BERSIH -->
+  <!-- 1. INTRO SINEMATIK -->
   <div id="intro-splash" class="intro-splash">
     <div id="splash-stage-title" class="splash-stage">
       <div class="splash-sub">NUSANTARA URBAN SIMULATION</div>
@@ -31,7 +34,7 @@
     <div class="splash-skip-hint">Ketuk layar untuk melewati</div>
   </div>
 
-  <!-- 2. UI MENU UTAMA + LOGO PETA INDONESIA -->
+  <!-- 2. MENU UTAMA -->
   <div id="main-menu-screen" class="screen-overlay hidden">
     <div class="menu-top-brand">
       <div class="app-logo-card">
@@ -64,7 +67,7 @@
     </div>
   </div>
 
-  <!-- 3. PILIHAN MODE PERMAINAN -->
+  <!-- 3. PILIHAN MODE -->
   <div id="mode-select-screen" class="screen-overlay hidden">
     <div class="flow-card">
       <div class="flow-header">
@@ -128,7 +131,7 @@
     </div>
   </div>
 
-  <!-- 5. PILIHAN PETA WILAYAH + 3D TERRAIN PREVIEW -->
+  <!-- 5. PILIHAN PETA WILAYAH -->
   <div id="map-select-screen" class="screen-overlay hidden">
     <div class="map-split-card">
       <div class="map-left-pane">
@@ -154,7 +157,7 @@
           </div>
           <div id="preview-reg-biome" class="reg-biome">Lembah &amp; Cincin Gunung Berapi • Kabut Sejuk</div>
           <p id="preview-reg-desc" class="reg-desc">Lembah luas dibelah Sungai Brantas; Tol Pandaan–Malang masuk dari Timur Laut.</p>
-          <button type="button" id="btn-start-city" class="start-city-btn" onclick="window.startNusantaraCity && window.startNusantaraCity()">🚀 MULAI BANGUN KOTA</button>
+          <button type="button" id="btn-start-city" class="start-city-btn">🚀 MULAI BANGUN KOTA</button>
         </div>
       </div>
     </div>
