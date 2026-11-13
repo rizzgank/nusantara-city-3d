@@ -3,8 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="City Building : Nusantara" />
   <title>City Building : Nusantara — Rizzi Games</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f172a'/%3E%3Cpath d='M12 42 L24 54 L28 52 L17 38 Z M29 63 L46 66 L47 62 L30 59 Z M43 44 L55 43 L56 54 L44 55 Z M60 44 L68 44 L66 55 L60 54 Z M49 65 L64 66 L64 63 L49 62 Z M78 49 L92 53 L92 64 L81 62 Z' fill='%2338bdf8'/%3E%3C/svg%3E" />
+  <link rel="icon" type="image/svg+xml" href="assets/logo-nusantara.svg" />
+  <link id="apple-touch-icon-link" rel="apple-touch-icon" href="assets/logo-nusantara.svg" />
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -14,13 +18,11 @@
 
   <!-- 1. INTRO SINEMATIK SIMPEL & BERSIH -->
   <div id="intro-splash" class="intro-splash">
-    <!-- Tahap 1: Judul Game -->
     <div id="splash-stage-title" class="splash-stage">
       <div class="splash-sub">NUSANTARA URBAN SIMULATION</div>
       <h1 class="splash-title">City Building : Nusantara Project</h1>
     </div>
 
-    <!-- Tahap 2: Logo Rizzi Games (Simple & Minimalist) -->
     <div id="splash-stage-logo" class="splash-stage">
       <div class="rg-simple-mark">RG</div>
       <div class="rg-simple-word">RIZZI GAMES</div>
@@ -33,46 +35,29 @@
   <div id="main-menu-screen" class="screen-overlay hidden">
     <div class="menu-top-brand">
       <div class="app-logo-card">
-        <!-- Logo Peta Kepulauan Indonesia -->
-        <svg class="indo-map-svg" viewBox="0 0 260 92" width="190" height="68" aria-label="Peta Indonesia">
-          <g fill="#38bdf8" stroke="#bae6fd" stroke-width="1.2" stroke-linejoin="round">
-            <!-- Sumatera -->
-            <path d="M16,24 L26,22 L42,38 L52,52 L46,57 L32,45 L18,31 Z" />
-            <!-- Jawa -->
-            <path d="M55,64 L78,66 L96,69 L95,73 L74,71 L54,69 Z" />
-            <!-- Kalimantan -->
-            <path d="M76,30 L94,24 L110,30 L112,46 L98,53 L80,51 L74,41 Z" />
-            <!-- Sulawesi -->
-            <path d="M123,31 L142,29 L144,33 L131,36 L133,44 L141,47 L137,54 L129,48 L125,55 L119,53 L121,42 Z" />
-            <!-- Bali & Nusa Tenggara -->
-            <path d="M100,71 L107,71 L107,74 L100,74 Z M111,71 L122,71 L122,74 L111,74 Z M126,72 L144,71 L144,75 L126,75 Z M148,73 L161,70 L162,74 L149,76 Z" />
-            <!-- Maluku -->
-            <path d="M156,33 L163,31 L164,41 L157,42 Z M162,48 L174,47 L174,52 L162,53 Z" />
-            <!-- Papua -->
-            <path d="M188,43 L204,42 L212,48 L236,52 L236,71 L220,69 L208,61 L197,59 L194,51 L186,49 Z" />
-          </g>
-        </svg>
+        <img src="assets/logo-nusantara.svg" alt="Logo City Building : Nusantara" class="app-logo-img" />
         <div class="app-logo-text-wrap">
+          <div class="app-logo-kicker">SIMULASI TATA KOTA 3D</div>
           <div class="app-logo-title">City Building : Nusantara</div>
-          <div class="app-logo-studio">by Rizzi Games</div>
+          <div class="app-logo-studio">RIZZI GAMES</div>
         </div>
       </div>
     </div>
 
     <div class="menu-bottom-dock">
-      <button id="btn-menu-play" class="mm-btn mm-btn-primary">
+      <button type="button" id="btn-menu-play" class="mm-btn mm-btn-primary">
         <span>▶</span>
         <span>PLAY</span>
       </button>
-      <button id="btn-menu-saveload" class="mm-btn">
+      <button type="button" id="btn-menu-saveload" class="mm-btn">
         <span>💾</span>
         <span>SAVE / LOAD</span>
       </button>
-      <button id="btn-menu-settings" class="mm-btn">
+      <button type="button" id="btn-menu-settings" class="mm-btn">
         <span>⚙️</span>
         <span>SETTINGS</span>
       </button>
-      <button id="btn-menu-exit" class="mm-btn mm-btn-danger">
+      <button type="button" id="btn-menu-exit" class="mm-btn mm-btn-danger">
         <span>🚪</span>
         <span>EXIT</span>
       </button>
@@ -83,7 +68,7 @@
   <div id="mode-select-screen" class="screen-overlay hidden">
     <div class="flow-card">
       <div class="flow-header">
-        <button id="btn-back-to-menu" class="back-pill-btn">← Menu Utama</button>
+        <button type="button" id="btn-back-to-menu" class="back-pill-btn">← Menu Utama</button>
         <div>
           <h2>Pilih Mode Permainan</h2>
           <p>Tentukan gaya kepemimpinanmu dalam membangun kota</p>
@@ -91,7 +76,7 @@
       </div>
 
       <div class="mode-cards-grid">
-        <button id="btn-choose-sandbox" class="choice-card choice-sandbox">
+        <button type="button" id="btn-choose-sandbox" class="choice-card choice-sandbox">
           <div class="choice-badge">BEBAS BERKREASI</div>
           <div class="choice-icon">🏖️</div>
           <h3>SANDBOX MODE</h3>
@@ -99,7 +84,7 @@
           <span class="choice-cta">Lanjut Pilih Peta →</span>
         </button>
 
-        <button id="btn-choose-real" class="choice-card choice-real">
+        <button type="button" id="btn-choose-real" class="choice-card choice-real">
           <div class="choice-badge">SIMULASI KEPALA DAERAH</div>
           <div class="choice-icon">🏛️</div>
           <h3>REAL MODE</h3>
@@ -114,7 +99,7 @@
   <div id="difficulty-select-screen" class="screen-overlay hidden">
     <div class="flow-card">
       <div class="flow-header">
-        <button id="btn-back-to-mode" class="back-pill-btn">← Pilih Mode</button>
+        <button type="button" id="btn-back-to-mode" class="back-pill-btn">← Pilih Mode</button>
         <div>
           <h2>Tingkat Kesulitan (Real Mode)</h2>
           <p>Memengaruhi modal APBD awal, biaya perawatan kota, dan toleransi warga</p>
@@ -122,19 +107,19 @@
       </div>
 
       <div class="diff-cards-grid">
-        <button class="diff-card diff-easy" data-diff="easy">
+        <button type="button" class="diff-card diff-easy" data-diff="easy">
           <h3>🟢 EASY (Perintis)</h3>
           <div class="diff-stat">Modal Awal: <strong>Rp 250,0 M</strong></div>
           <p>Biaya operasional infrastruktur ringan dan warga lebih sabar menunggu fasilitas baru.</p>
         </button>
 
-        <button class="diff-card diff-medium" data-diff="medium">
+        <button type="button" class="diff-card diff-medium" data-diff="medium">
           <h3>🟡 MEDIUM (Walikota)</h3>
           <div class="diff-stat">Modal Awal: <strong>Rp 120,0 M</strong></div>
           <p>Keseimbangan pajak, kebutuhan listrik, air, ibadah, dan pendidikan standar.</p>
         </button>
 
-        <button class="diff-card diff-hard" data-diff="hard">
+        <button type="button" class="diff-card diff-hard" data-diff="hard">
           <h3>🔴 HARD (Krisis APBD)</h3>
           <div class="diff-stat">Modal Awal: <strong>Rp 60,0 M</strong></div>
           <p>Anggaran awal ketat dan biaya perawatan tinggi. Salah tata kota langsung memicu defisit.</p>
@@ -148,7 +133,7 @@
     <div class="map-split-card">
       <div class="map-left-pane">
         <div class="flow-header compact">
-          <button id="btn-back-from-map" class="back-pill-btn">← Kembali</button>
+          <button type="button" id="btn-back-from-map" class="back-pill-btn">← Kembali</button>
           <div>
             <h2>Pilih Wilayah Nusantara</h2>
             <p id="map-mode-badge">Mode: Sandbox</p>
@@ -165,11 +150,11 @@
         <div class="preview-meta">
           <div class="preview-title-row">
             <h3 id="preview-reg-name">Malang Raya</h3>
-            <span id="preview-reg-temp" class="reg-temp">20°C</span>
+            <span id="preview-reg-temp" class="reg-temp">18°C</span>
           </div>
-          <div id="preview-reg-biome" class="reg-biome">Lembah Pegunungan &amp; Sungai</div>
-          <p id="preview-reg-desc" class="reg-desc">Dataran tinggi sejuk dikelilingi pegunungan hijau dan aliran sungai jernih.</p>
-          <button id="btn-start-city" class="start-city-btn">🚀 MULAI BANGUN KOTA</button>
+          <div id="preview-reg-biome" class="reg-biome">Lembah &amp; Cincin Gunung Berapi • Kabut Sejuk</div>
+          <p id="preview-reg-desc" class="reg-desc">Lembah luas dibelah Sungai Brantas; Tol Pandaan–Malang masuk dari Timur Laut.</p>
+          <button type="button" id="btn-start-city" class="start-city-btn">🚀 MULAI BANGUN KOTA</button>
         </div>
       </div>
     </div>
@@ -183,7 +168,7 @@
         <span class="sep">•</span>
         <span id="hud-level-badge" class="level-tag">Lv.1 Desa Rintisan</span>
         <span class="sep">•</span>
-        <span id="hud-weather">20°C</span>
+        <span id="hud-weather">18°C</span>
         <span class="sep">•</span>
         <span id="hud-happiness">😊 82%</span>
       </div>
@@ -208,9 +193,9 @@
         <span class="sep">•</span>
         <span id="hud-pop">👥 0</span>
         <div class="speed-group">
-          <button class="speed-btn" data-speed="0" title="Jeda">⏸</button>
-          <button class="speed-btn active" data-speed="1" title="Normal">▶</button>
-          <button class="speed-btn" data-speed="3" title="Cepat">⏩</button>
+          <button type="button" class="speed-btn" data-speed="0" title="Jeda">⏸</button>
+          <button type="button" class="speed-btn active" data-speed="1" title="Normal">▶</button>
+          <button type="button" class="speed-btn" data-speed="3" title="Cepat">⏩</button>
         </div>
         <span id="hud-clock">07:30</span>
       </div>
@@ -219,16 +204,16 @@
     <div id="lens-banner" class="lens-banner hidden">⚡ Lensa Cakupan Aktif</div>
 
     <div id="road-options-bar" class="road-options-bar hidden">
-      <button class="ropt-btn active" data-shape="straight">📏 Lurus</button>
-      <button class="ropt-btn" data-shape="curved">〰️ Melengkung</button>
-      <button class="ropt-btn" data-shape="roundabout">⭕ Bundaran Alun-Alun</button>
-      <button id="btn-toggle-road-trees" class="ropt-btn active">🌳 Pohon Trotoar: ON</button>
+      <button type="button" class="ropt-btn active" data-shape="straight">📏 Lurus</button>
+      <button type="button" class="ropt-btn" data-shape="curved">〰️ Melengkung</button>
+      <button type="button" class="ropt-btn" data-shape="roundabout">⭕ Bundaran Alun-Alun</button>
+      <button type="button" id="btn-toggle-road-trees" class="ropt-btn active">🌳 Pohon Trotoar: ON</button>
     </div>
 
     <div class="side-actions">
-      <button id="btn-open-chat" class="side-btn ai-btn">💬 Bantuan</button>
-      <button id="btn-cam-view" class="side-btn">📐 Sudut: 3D</button>
-      <button id="btn-game-menu" class="side-btn">💾 Simpan / Menu</button>
+      <button type="button" id="btn-open-chat" class="side-btn ai-btn">💬 Bantuan</button>
+      <button type="button" id="btn-cam-view" class="side-btn">📐 Sudut: 3D</button>
+      <button type="button" id="btn-game-menu" class="side-btn">💾 Simpan / Menu</button>
     </div>
 
     <div id="inspect-card" class="inspect-card hidden">
@@ -237,7 +222,7 @@
           <span id="ins-badge" class="ins-badge">Hunian Level 1</span>
           <h4 id="ins-title">Rumah Tapak Warga</h4>
         </div>
-        <button id="btn-close-inspect" class="ins-close">✕</button>
+        <button type="button" id="btn-close-inspect" class="ins-close">✕</button>
       </div>
       <div id="ins-stats" class="ins-stats">Penghuni: 18 Jiwa</div>
       <div id="ins-needs" class="ins-needs-grid"></div>
@@ -246,31 +231,31 @@
 
     <div id="blueprint-bar" class="blueprint-bar hidden">
       <span id="blueprint-info">Siap Bangun</span>
-      <button id="btn-bp-curve" class="bp-btn bp-rot hidden">🔄 Balik Lengkung</button>
-      <button id="btn-bp-rotate" class="bp-btn bp-rot hidden">↻ Putar</button>
-      <button id="btn-bp-confirm" class="bp-btn bp-ok">✓ Bangun</button>
-      <button id="btn-bp-cancel" class="bp-btn bp-no">✕ Batal</button>
+      <button type="button" id="btn-bp-curve" class="bp-btn bp-rot hidden">🔄 Balik Lengkung</button>
+      <button type="button" id="btn-bp-rotate" class="bp-btn bp-rot hidden">↻ Putar</button>
+      <button type="button" id="btn-bp-confirm" class="bp-btn bp-ok">✓ Bangun</button>
+      <button type="button" id="btn-bp-cancel" class="bp-btn bp-no">✕ Batal</button>
     </div>
 
     <div id="sub-menu" class="sub-menu hidden"></div>
     <div class="bottom-dock">
-      <button class="dock-btn" data-menu="jalan">🛣️ Jalan</button>
-      <button class="dock-btn" data-menu="zona_lahan">🗺️ Zona &amp; Lahan</button>
-      <button class="dock-btn" data-menu="layanan">🏛️ Layanan</button>
-      <button class="dock-btn" data-menu="perda_gebrakan">🚀 Gebrakan</button>
-      <button class="dock-btn" data-menu="buldoser">🪓 Buldoser</button>
+      <button type="button" class="dock-btn" data-menu="jalan">🛣️ Jalan</button>
+      <button type="button" class="dock-btn" data-menu="zona_lahan">🗺️ Zona &amp; Lahan</button>
+      <button type="button" class="dock-btn" data-menu="layanan">🏛️ Layanan</button>
+      <button type="button" class="dock-btn" data-menu="perda_gebrakan">🚀 Gebrakan</button>
+      <button type="button" class="dock-btn" data-menu="buldoser">🪓 Buldoser</button>
     </div>
 
     <aside id="ai-chat-drawer" class="ai-drawer closed">
       <div class="drawer-head">
         <span>🤖 Staf Ahli Tata Kota</span>
-        <button id="btn-close-chat">✕</button>
+        <button type="button" id="btn-close-chat">✕</button>
       </div>
       <div id="chat-messages" class="chat-messages"></div>
       <div class="chat-chips">
-        <button class="chip-btn" data-q="Cek kebutuhan warga">📊 Kebutuhan Warga</button>
-        <button class="chip-btn" data-q="Cara buat bundaran alun-alun">⭕ Bundaran</button>
-        <button class="chip-btn" data-q="Cara naik level kota">🏆 Naik Level</button>
+        <button type="button" class="chip-btn" data-q="Cek kebutuhan warga">📊 Kebutuhan Warga</button>
+        <button type="button" class="chip-btn" data-q="Cara buat bundaran alun-alun">⭕ Bundaran</button>
+        <button type="button" class="chip-btn" data-q="Cara naik level kota">🏆 Naik Level</button>
       </div>
       <form id="chat-form" class="chat-form">
         <input id="chat-input" type="text" placeholder="Tanya Staf Ahli kota..." autocomplete="off" />
@@ -284,7 +269,7 @@
     <div class="modal-box modal-wide">
       <div class="modal-head">
         <h3>💾 Penyimpanan Kota (Save / Load)</h3>
-        <button id="btn-close-saveload" class="modal-close-btn">✕</button>
+        <button type="button" id="btn-close-saveload" class="modal-close-btn">✕</button>
       </div>
       <p class="modal-sub">Auto-Save berjalan otomatis setiap 3 menit saat bermain. Maksimal 4 slot simpan manual.</p>
       <div id="save-slots-list" class="save-slots-list"></div>
@@ -295,7 +280,7 @@
     <div class="modal-box">
       <div class="modal-head">
         <h3>⚙️ Pengaturan Permainan</h3>
-        <button id="btn-close-settings" class="modal-close-btn">✕</button>
+        <button type="button" id="btn-close-settings" class="modal-close-btn">✕</button>
       </div>
       <div class="settings-list">
         <div class="setting-row">
@@ -335,7 +320,7 @@
             <strong>Putar Ulang Intro Pembuka</strong>
             <div class="setting-desc">Tampilkan kembali animasi judul &amp; logo RG</div>
           </div>
-          <button id="btn-replay-intro" class="small-action-btn">🎬 Putar Intro</button>
+          <button type="button" id="btn-replay-intro" class="small-action-btn">🎬 Putar Intro</button>
         </div>
       </div>
     </div>
@@ -345,14 +330,14 @@
     <div class="modal-box">
       <div class="modal-head">
         <h3>🏛️ Menu Kepala Daerah</h3>
-        <button id="btn-close-pause" class="modal-close-btn">✕</button>
+        <button type="button" id="btn-close-pause" class="modal-close-btn">✕</button>
       </div>
       <div class="pause-actions-grid">
-        <button id="btn-pause-resume" class="pause-btn pause-primary">▶ Lanjutkan Bermain</button>
-        <button id="btn-pause-save" class="pause-btn">💾 Simpan Kota (Save Slot)</button>
-        <button id="btn-pause-load" class="pause-btn">📂 Muat Kota Lain (Load)</button>
-        <button id="btn-pause-settings" class="pause-btn">⚙️ Pengaturan</button>
-        <button id="btn-pause-mainmenu" class="pause-btn pause-danger">🏠 Keluar ke Menu Utama</button>
+        <button type="button" id="btn-pause-resume" class="pause-btn pause-primary">▶ Lanjutkan Bermain</button>
+        <button type="button" id="btn-pause-save" class="pause-btn">💾 Simpan Kota (Save Slot)</button>
+        <button type="button" id="btn-pause-load" class="pause-btn">📂 Muat Kota Lain (Load)</button>
+        <button type="button" id="btn-pause-settings" class="pause-btn">⚙️ Pengaturan</button>
+        <button type="button" id="btn-pause-mainmenu" class="pause-btn pause-danger">🏠 Keluar ke Menu Utama</button>
       </div>
     </div>
   </div>
@@ -361,12 +346,12 @@
     <div class="modal-box">
       <div class="modal-head">
         <h3>🚪 Keluar dari Permainan?</h3>
-        <button id="btn-close-exit" class="modal-close-btn">✕</button>
+        <button type="button" id="btn-close-exit" class="modal-close-btn">✕</button>
       </div>
       <p class="modal-sub">Pastikan progres kotamu sudah tersimpan di Slot Save sebelum menutup aplikasi.</p>
       <div class="exit-btn-row">
-        <button id="btn-cancel-exit" class="pause-btn">Batal</button>
-        <button id="btn-confirm-exit" class="pause-btn pause-danger">Ya, Keluar</button>
+        <button type="button" id="btn-cancel-exit" class="pause-btn">Batal</button>
+        <button type="button" id="btn-confirm-exit" class="pause-btn pause-danger">Ya, Keluar</button>
       </div>
     </div>
   </div>
