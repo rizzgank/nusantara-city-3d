@@ -7,14 +7,14 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- Layar Awal: Pilihan Peta Se-Indonesia & Mode Permainan -->
+  <!-- Layar Awal: Pilihan Peta Se-Indonesia & Mode Pemerintahan -->
   <div id="launcher-screen" class="overlay-screen">
     <div class="launcher-card">
       <div class="launcher-header">
         <div>
           <span class="badge-tag">SIMULASI TATA KOTA & PEMERINTAHAN 3D HD</span>
           <h1>NUSANTARA: CITY &amp; POLICY</h1>
-          <p>Peta skala kabupaten 6.400 kavling dengan topografi nyata Indonesia &amp; tata ruang presisi.</p>
+          <p>Peta 6.400 kavling dengan topografi nyata Indonesia, akses tol realistis &amp; tata jalan fleksibel.</p>
         </div>
         <div class="mode-selector">
           <span class="section-label">MODE PEMERINTAHAN</span>
@@ -31,7 +31,7 @@
 
       <div class="launcher-footer">
         <div class="selected-summary" id="selected-summary">
-          Terpilih: <strong>Kota Malang (Malang Raya)</strong> • Dataran Tinggi Cekungan (18°C)
+          Terpilih: <strong>Malang Raya</strong> • Lembah &amp; Cincin Gunung Berapi (18°C)
         </div>
         <button id="btn-start-city" class="primary-cta">Mulai Menjabat Kepala Daerah ➤</button>
       </div>
@@ -46,9 +46,9 @@
     <!-- Bar Atas Tipis -->
     <header id="top-hud">
       <button id="btn-city-menu" class="hud-pill clickable" title="Ganti Kota / Peta Indonesia">
-        <span id="hud-city-name">📍 Kota Malang</span>
+        <span id="hud-city-name">📍 Malang Raya</span>
         <span class="divider">•</span>
-        <span id="hud-weather">18°C Kabut Pagi</span>
+        <span id="hud-weather">18°C Kabut Sejuk</span>
         <span class="divider">•</span>
         <span id="hud-happiness">😊 82%</span>
       </button>
@@ -82,8 +82,16 @@
       </div>
     </header>
 
-    <!-- Banner Smart Data Lens (Muncul Otomatis saat alat PLN / PDAM dipilih) -->
+    <!-- Banner Smart Data Lens -->
     <div id="lens-banner" class="lens-banner hidden"></div>
+
+    <!-- Bilah Opsi Bentuk Jalan & Pohon Trotoar (Muncul saat alat jalan dipilih) -->
+    <div id="road-options-bar" class="road-options-bar hidden">
+      <button class="ropt-btn active" data-shape="straight">📏 Lurus</button>
+      <button class="ropt-btn" data-shape="curved">〰️ Melengkung</button>
+      <button class="ropt-btn" data-shape="roundabout">⭕ Bundaran Alun-Alun</button>
+      <button id="btn-toggle-road-trees" class="ropt-btn tree-opt active">🌳 Pohon Trotoar: ON</button>
+    </div>
 
     <!-- Tombol Bantuan, Sudut Kamera & Notifikasi Minimalis di Kanan -->
     <aside id="right-actions">
@@ -107,8 +115,8 @@
 
       <div class="chat-chips" id="chat-chips">
         <button class="chip-btn" data-q="Cek progress kotaku sekarang">Cek progress kotaku sekarang</button>
-        <button class="chip-btn" data-q="Cara naruh jalan dan zona presisi?">Cara tarik jalan presisi?</button>
-        <button class="chip-btn" data-q="Kontrol kamera 2 jari gimana?">Kontrol kamera 2 jari?</button>
+        <button class="chip-btn" data-q="Cara buat jalan melengkung & bundaran alun-alun?">Jalan melengkung &amp; bundaran?</button>
+        <button class="chip-btn" data-q="Kontrol kamera ground-lock gimana?">Kontrol kamera terbaru?</button>
       </div>
 
       <form id="chat-form" class="chat-input-row">
@@ -122,8 +130,9 @@
 
     <!-- Bar Konfirmasi Penempatan Presisi ala TheoTown -->
     <div id="blueprint-bar" class="blueprint-bar hidden">
-      <span id="blueprint-info">Jalan Arteri (6 Petak) • Rp 2,10 M</span>
+      <span id="blueprint-info">Jalan Raya 4 Lajur (6 Petak) • Rp 2,10 M</span>
       <div class="bp-actions">
+        <button id="btn-bp-curve" class="bp-btn curve hidden">〰️ Lengkung</button>
         <button id="btn-bp-rotate" class="bp-btn rotate hidden">🔄 Putar</button>
         <button id="btn-bp-confirm" class="bp-btn confirm">✓ Bangun</button>
         <button id="btn-bp-cancel" class="bp-btn cancel">✕ Batal</button>
