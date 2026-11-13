@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>City Building : Nusantara Project — Rizzi Games</title>
+  <title>City Building : Nusantara — Rizzi Games</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f172a'/%3E%3Cpath d='M12 42 L24 54 L28 52 L17 38 Z M29 63 L46 66 L47 62 L30 59 Z M43 44 L55 43 L56 54 L44 55 Z M60 44 L68 44 L66 55 L60 54 Z M49 65 L64 66 L64 63 L49 62 Z M78 49 L92 53 L92 64 L81 62 Z' fill='%2338bdf8'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -11,66 +12,69 @@
   <!-- KANVAS DUNIA 3D UTAMA -->
   <canvas id="game-canvas"></canvas>
 
-  <!-- 1. INTRO SINEMATIK PEMBUKA -->
+  <!-- 1. INTRO SINEMATIK SIMPEL & BERSIH -->
   <div id="intro-splash" class="intro-splash">
-    <div class="intro-particles"></div>
-
-    <div id="splash-stage-title" class="splash-stage active">
-      <div class="splash-kicker">SIMULASI TATA KOTA 3D NUSANTARA</div>
-      <h1 class="splash-main-title">City Building : Nusantara Project</h1>
-      <div class="splash-divider"></div>
+    <!-- Tahap 1: Judul Game -->
+    <div id="splash-stage-title" class="splash-stage">
+      <div class="splash-sub">NUSANTARA URBAN SIMULATION</div>
+      <h1 class="splash-title">City Building : Nusantara Project</h1>
     </div>
 
+    <!-- Tahap 2: Logo Rizzi Games (Simple & Minimalist) -->
     <div id="splash-stage-logo" class="splash-stage">
-      <div class="rg-emblem-wrap">
-        <svg class="rg-svg" viewBox="0 0 140 140" width="118" height="118" aria-label="RG Logo">
-          <defs>
-            <linearGradient id="rgGold" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#fef08a" />
-              <stop offset="45%" stop-color="#f59e0b" />
-              <stop offset="100%" stop-color="#b45309" />
-            </linearGradient>
-            <linearGradient id="rgBlue" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="#1e3a8a" />
-              <stop offset="100%" stop-color="#090d16" />
-            </linearGradient>
-          </defs>
-          <polygon points="70,6 128,38 128,102 70,134 12,102 12,38" fill="url(#rgBlue)" stroke="url(#rgGold)" stroke-width="5" />
-          <polygon points="70,15 119,43 119,97 70,125 21,97 21,43" fill="none" stroke="rgba(253,224,71,0.35)" stroke-width="1.5" />
-          <text x="70" y="84" text-anchor="middle" fill="url(#rgGold)" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="46" letter-spacing="-2">RG</text>
-        </svg>
-      </div>
-      <div class="rg-studio-name">RIZZI GAMES</div>
-      <div class="rg-studio-sub">INTERACTIVE ENTERTAINMENT</div>
+      <div class="rg-simple-mark">RG</div>
+      <div class="rg-simple-word">RIZZI GAMES</div>
     </div>
 
     <div class="splash-skip-hint">Ketuk layar untuk melewati</div>
   </div>
 
-  <!-- 2. UI MENU UTAMA -->
+  <!-- 2. UI MENU UTAMA + LOGO PETA INDONESIA -->
   <div id="main-menu-screen" class="screen-overlay hidden">
     <div class="menu-top-brand">
-      <span class="menu-studio-pill">RG • RIZZI GAMES PRESENTS</span>
-      <h1 class="menu-game-title">City Building : Nusantara Project</h1>
-      <p class="menu-game-subtitle">Bangun Desa Rintisan hingga Megapolitan Berkilau di Tanah Nusantara</p>
+      <div class="app-logo-card">
+        <!-- Logo Peta Kepulauan Indonesia -->
+        <svg class="indo-map-svg" viewBox="0 0 260 92" width="190" height="68" aria-label="Peta Indonesia">
+          <g fill="#38bdf8" stroke="#bae6fd" stroke-width="1.2" stroke-linejoin="round">
+            <!-- Sumatera -->
+            <path d="M16,24 L26,22 L42,38 L52,52 L46,57 L32,45 L18,31 Z" />
+            <!-- Jawa -->
+            <path d="M55,64 L78,66 L96,69 L95,73 L74,71 L54,69 Z" />
+            <!-- Kalimantan -->
+            <path d="M76,30 L94,24 L110,30 L112,46 L98,53 L80,51 L74,41 Z" />
+            <!-- Sulawesi -->
+            <path d="M123,31 L142,29 L144,33 L131,36 L133,44 L141,47 L137,54 L129,48 L125,55 L119,53 L121,42 Z" />
+            <!-- Bali & Nusa Tenggara -->
+            <path d="M100,71 L107,71 L107,74 L100,74 Z M111,71 L122,71 L122,74 L111,74 Z M126,72 L144,71 L144,75 L126,75 Z M148,73 L161,70 L162,74 L149,76 Z" />
+            <!-- Maluku -->
+            <path d="M156,33 L163,31 L164,41 L157,42 Z M162,48 L174,47 L174,52 L162,53 Z" />
+            <!-- Papua -->
+            <path d="M188,43 L204,42 L212,48 L236,52 L236,71 L220,69 L208,61 L197,59 L194,51 L186,49 Z" />
+          </g>
+        </svg>
+        <div class="app-logo-text-wrap">
+          <div class="app-logo-title">City Building : Nusantara</div>
+          <div class="app-logo-studio">by Rizzi Games</div>
+        </div>
+      </div>
     </div>
 
     <div class="menu-bottom-dock">
       <button id="btn-menu-play" class="mm-btn mm-btn-primary">
-        <span class="mm-icon">▶</span>
-        <span class="mm-label">PLAY</span>
+        <span>▶</span>
+        <span>PLAY</span>
       </button>
       <button id="btn-menu-saveload" class="mm-btn">
-        <span class="mm-icon">💾</span>
-        <span class="mm-label">SAVE / LOAD</span>
+        <span>💾</span>
+        <span>SAVE / LOAD</span>
       </button>
       <button id="btn-menu-settings" class="mm-btn">
-        <span class="mm-icon">⚙️</span>
-        <span class="mm-label">SETTINGS</span>
+        <span>⚙️</span>
+        <span>SETTINGS</span>
       </button>
       <button id="btn-menu-exit" class="mm-btn mm-btn-danger">
-        <span class="mm-icon">🚪</span>
-        <span class="mm-label">EXIT</span>
+        <span>🚪</span>
+        <span>EXIT</span>
       </button>
     </div>
   </div>
@@ -173,7 +177,6 @@
 
   <!-- 6. HUD DALAM PERMAINAN -->
   <div id="hud-layer" class="hidden">
-    <!-- Top Bar -->
     <div class="top-hud">
       <div class="hud-pill hud-left">
         <span id="hud-city-name">📍 Malang Raya</span>
@@ -213,10 +216,8 @@
       </div>
     </div>
 
-    <!-- Banner Lensa Cakupan Layanan -->
     <div id="lens-banner" class="lens-banner hidden">⚡ Lensa Cakupan Aktif</div>
 
-    <!-- Opsi Bentuk Jalan & Pohon Trotoar -->
     <div id="road-options-bar" class="road-options-bar hidden">
       <button class="ropt-btn active" data-shape="straight">📏 Lurus</button>
       <button class="ropt-btn" data-shape="curved">〰️ Melengkung</button>
@@ -224,14 +225,12 @@
       <button id="btn-toggle-road-trees" class="ropt-btn active">🌳 Pohon Trotoar: ON</button>
     </div>
 
-    <!-- Tombol Kanan Atas -->
     <div class="side-actions">
       <button id="btn-open-chat" class="side-btn ai-btn">💬 Bantuan</button>
       <button id="btn-cam-view" class="side-btn">📐 Sudut: 3D</button>
       <button id="btn-game-menu" class="side-btn">💾 Simpan / Menu</button>
     </div>
 
-    <!-- Kartu Inspeksi Bangunan (Tap to Inspect) -->
     <div id="inspect-card" class="inspect-card hidden">
       <div class="inspect-head">
         <div>
@@ -240,12 +239,11 @@
         </div>
         <button id="btn-close-inspect" class="ins-close">✕</button>
       </div>
-      <div id="ins-stats" class="ins-stats">Penghuni: 12 Jiwa • Lahan Terasering</div>
+      <div id="ins-stats" class="ins-stats">Penghuni: 18 Jiwa</div>
       <div id="ins-needs" class="ins-needs-grid"></div>
       <div id="ins-tip" class="ins-tip">Butuh Listrik PLN, Air PDAM &amp; Tempat Ibadah untuk naik ke Level 2.</div>
     </div>
 
-    <!-- Bilah Konfirmasi Cetak Biru -->
     <div id="blueprint-bar" class="blueprint-bar hidden">
       <span id="blueprint-info">Siap Bangun</span>
       <button id="btn-bp-curve" class="bp-btn bp-rot hidden">🔄 Balik Lengkung</button>
@@ -254,7 +252,6 @@
       <button id="btn-bp-cancel" class="bp-btn bp-no">✕ Batal</button>
     </div>
 
-    <!-- Sub-Menu & Dock Bawah (Menu Jalan Terpisah!) -->
     <div id="sub-menu" class="sub-menu hidden"></div>
     <div class="bottom-dock">
       <button class="dock-btn" data-menu="jalan">🛣️ Jalan</button>
@@ -264,7 +261,6 @@
       <button class="dock-btn" data-menu="buldoser">🪓 Buldoser</button>
     </div>
 
-    <!-- Drawer Asisten AI -->
     <aside id="ai-chat-drawer" class="ai-drawer closed">
       <div class="drawer-head">
         <span>🤖 Staf Ahli Tata Kota</span>
@@ -283,7 +279,7 @@
     </aside>
   </div>
 
-  <!-- MODAL SAVE / LOAD SLOT -->
+  <!-- MODALS -->
   <div id="saveload-modal" class="modal-backdrop hidden">
     <div class="modal-box modal-wide">
       <div class="modal-head">
@@ -295,7 +291,6 @@
     </div>
   </div>
 
-  <!-- MODAL SETTINGS -->
   <div id="settings-modal" class="modal-backdrop hidden">
     <div class="modal-box">
       <div class="modal-head">
@@ -346,7 +341,6 @@
     </div>
   </div>
 
-  <!-- MODAL MENU JEDA DALAM GAME -->
   <div id="pause-modal" class="modal-backdrop hidden">
     <div class="modal-box">
       <div class="modal-head">
@@ -363,7 +357,6 @@
     </div>
   </div>
 
-  <!-- MODAL KONFIRMASI EXIT -->
   <div id="exit-modal" class="modal-backdrop hidden">
     <div class="modal-box">
       <div class="modal-head">
