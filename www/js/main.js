@@ -1,18 +1,38 @@
 (function () {
+  const SAVE_STORAGE_KEY = "nusantara_city_saves_v1";
+
+  const DIFFICULTY_CONFIG = {
+    easy: { key: "easy", label: "Easy (Perintis)", startMoney: 250.0, upkeepMult: 0.7 },
+    medium: { key: "medium", label: "Medium (Walikota)", startMoney: 120.0, upkeepMult: 1.0 },
+    hard: { key: "hard", label: "Hard (Krisis APBD)", startMoney: 60.0, upkeepMult: 1.35 }
+  };
+
   const state = {
+    inGame: false,
     region: window.INDONESIA_REGIONS[0],
-    modeKey: "sandbox",
+    modeKey: "sandbox", // "sandbox" | "real"
+    difficultyKey: "medium",
     money: Infinity,
     population: 0,
     happiness: 82,
     hour: 7.5,
     speed: 1,
     activeDockMenu: null,
-    activeSubTool: null
+    activeSubTool: null,
+    settings: {
+      quality: "high",
+      zoomSpeed: 1.0,
+      showGrid: true
+    }
   };
 
   let engine = null;
   let citySim = null;
+  let previewRenderer = null;
+  let previewScene = null;
+  let previewCamera = null;
+  let previewMesh = null;
+  let introTimers = [];
 
   const TOOL_LABELS = {
     road_4lane: "Jalan Raya 4 Lajur",
@@ -50,18 +70,29 @@
     layanan: [
       { id: "pln", label: "⚡ Pembangkit PLN (Rp 4,5M)" },
       { id: "pdam", label: "💧 Instalasi Air PDAM (Rp 3,5M)" },
-      { id: "info_layanan", label: "🏫 SD–Univ, RSUD & Polsek (Paket B)" }
+      { id: "info_tahap2", label: "🕌 Masjid/Ibadah, Sekolah & RSUD (Tahap 2)" }
     ],
     perda: [
-      { id: "info_perda", label: "📜 Pajak Hiburan Malam & Perda Ritel (Paket B)" }
+      { id: "info_tahap3", label: "📜 Perda Pajak UMKM & Hiburan Malam (Tahap 3)" }
     ],
     gebrakan: [
-      { id: "info_gebrakan", label: "🚀 Studio Arsitek Kustom & AI Blueprint (Paket B)" }
+      { id: "info_tahap3", label: "🚀 Studio Arsitek Kustom & AI Blueprint (Tahap 3)" }
     ],
     buldoser: [
-      { id: "bulldoze", label: "🪓 Pilih Area Hapus (Tarik Kotak / Ketuk Objek)" }
+      { id: "bulldoze", label: "🪓 Pilih Area Hapus (Tarik / Ketuk Objek)" }
     ]
   };
+
+  // =========================================================
+  // HELPER UMUM & JENJANG LEVEL WILAYAH
+  // =========================================================
+  function getRegionLevelLabel(pop) {
+    if (pop >= 75000) return "Lv.5 Megapolitan";
+    if (pop >= 20000) return "Lv.4 Metropolitan";
+    if (pop >= 5000) return "Lv.3 Kota Madya";
+    if (pop >= 1000) return "Lv.2 Kota Kecil";
+    return "Lv.1 Desa Rintisan";
+  }
 
   function showToast(msg) {
     const el = document.getElementById("toast");
@@ -69,6 +100,16 @@
     el.classList.remove("hidden");
     clearTimeout(showToast._timer);
     showToast._timer = setTimeout(() => el.classList.add("hidden"), 2700);
+  }
+
+  function hideAllScreens() {
+    [
+      "main-menu-screen",
+      "mode-select-screen",
+      "difficulty-select-screen",
+      "map-select-screen",
+      "hud-layer"
+    ].forEach((id) => document.getElementById(id).classList.add("hidden"));
   }
 
   function spendBudget(amount) {
@@ -81,6 +122,629 @@
     return true;
   }
 
+  // =========================================================
+  // 1. INTRO SINEMATIK PEMBUKA (Judul Game -> Logo RG)
+  // =========================================================
+  function playIntroCinematic(onComplete) {
+    introTimers.forEach((t) => clearTimeout(t));
+    introTimers = [];
+
+    const splash = document.getElementById("intro-splash");
+    const stageTitle = document.getElementById("splash-stage-title");
+    const stageLogo = document.getElementById("splash-stage-logo");
+
+    splash.classList.remove("hidden", "fade-out");
+    stageTitle.classList.remove("play-cinematic");
+    stageLogo.classList.remove("play-cinematic");
+    void stageTitle.offsetWidth;
+
+    stageTitle.classList.add("play-cinematic");
+
+    introTimers.push(
+      setTimeout(() => {
+        stageTitle.classList.remove("play-cinematic");
+        stageLogo.classList.add("play-cinematic");
+      }, 2650)
+    );
+
+    const finishIntro = () => {
+      introTimers.forEach((t) => clearTimeout(t));
+      introTimers = [];
+      splash.classList.add("fade-out");
+      setTimeout(() => {
+        splash.classList.add("hidden");
+        if (onComplete) onComplete();
+      }, 650);
+    };
+
+    introTimers.push(setTimeout(finishIntro, 5350));
+    splash.onclick = finishIntro;
+  }
+
+  // =========================================================
+  // 2. ENGINE 3D UTAMA & 3D PREVIEW PETA DI LAYAR PEMILIHAN
+  // =========================================================
+  function ensureMainEngine() {
+    if (engine) return;
+    engine = new NusantaraGraphicsHD(document.getElementById("game-canvas"), {
+      onSelectionStart: (wx, wz, toolId) => {
+        if (!citySim || !state.inGame) return;
+        const bp = citySim.beginSelection(wx, wz, toolId);
+        updateBlueprintUI(bp);
+      },
+      onSelectionMove: (wx, wz, toolId) => {
+        if (!citySim || !state.inGame) return;
+        const bp = citySim.updateSelection(wx, wz, toolId);
+        updateBlueprintUI(bp);
+      },
+      onSelectionEnd: () => {
+        if (citySim && citySim.pendingBlueprint && state.inGame) {
+          updateBlueprintUI(citySim.pendingBlueprint);
+        }
+      }
+    });
+    citySim = new CityRCISystem(engine);
+    engine.onAtmosphereChange = (isNight) => citySim.updateNightLighting(isNight);
+    engine.loadRegion(state.region);
+    citySim.resetCity(state.region);
+    engine.updateAtmosphere(8.5);
+    applyGraphicsSettings();
+  }
+
+  function applyGraphicsSettings() {
+    if (!engine) return;
+    const q = state.settings.quality;
+    if (q === "low") {
+      engine.renderer.setPixelRatio(1);
+      engine.renderer.shadowMap.enabled = false;
+    } else if (q === "medium") {
+      engine.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      engine.renderer.shadowMap.enabled = true;
+    } else {
+      engine.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      engine.renderer.shadowMap.enabled = true;
+    }
+  }
+
+  function update3DMapPreview(region) {
+    const canvas = document.getElementById("map-preview-canvas");
+    if (!canvas) return;
+
+    if (!previewRenderer) {
+      previewRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      previewScene = new THREE.Scene();
+      previewCamera = new THREE.PerspectiveCamera(42, 1.6, 0.5, 300);
+      previewCamera.position.set(0, 48, 56);
+      previewCamera.lookAt(0, 2, 0);
+
+      const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x3f6212, 0.9);
+      const dir = new THREE.DirectionalLight(0xfffbeb, 1.35);
+      dir.position.set(40, 70, 35);
+      previewScene.add(hemi, dir);
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      previewRenderer.setSize(rect.width, rect.height, false);
+      previewCamera.aspect = rect.width / rect.height;
+      previewCamera.updateProjectionMatrix();
+    }
+
+    previewScene.background = new THREE.Color(region.fogColor);
+
+    if (previewMesh) {
+      previewScene.remove(previewMesh);
+      previewMesh.geometry.dispose();
+    }
+
+    const segs = 64;
+    const size = 64;
+    const geo = new THREE.PlaneGeometry(size, size, segs, segs);
+    geo.rotateX(-Math.PI / 2);
+
+    const pos = geo.attributes.position;
+    const cols = new Float32Array(pos.count * 3);
+    const c = new THREE.Color();
+
+    for (let i = 0; i < pos.count; i++) {
+      const px = pos.getX(i);
+      const pz = pos.getZ(i);
+      const wx = (px / (size / 2)) * 160;
+      const wz = (pz / (size / 2)) * 160;
+      const h = window.generateRegionHeight(region, wx, wz, 160);
+      const scaledY = h * 0.35;
+      pos.setY(i, scaledY);
+
+      if (h < -0.1) c.setHex(0x0284c7);
+      else if (h < 0.55) c.setHex(0xe2d2a4);
+      else if (h > 16.5) c.setHex(0x64748b);
+      else if (h < 6.0) c.setHex(0x4d7c0f);
+      else c.setHex(0x365314);
+
+      cols[i * 3] = c.r;
+      cols[i * 3 + 1] = c.g;
+      cols[i * 3 + 2] = c.b;
+    }
+
+    geo.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+    previewMesh = new THREE.Mesh(geo, mat);
+    previewScene.add(previewMesh);
+  }
+
+  // =========================================================
+  // 3. SISTEM SAVE & LOAD (4 Slot Manual + 1 Auto-Save 3 Menit)
+  // =========================================================
+  function loadAllSaveSlots() {
+    try {
+      const raw = localStorage.getItem(SAVE_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeAllSaveSlots(allData) {
+    try {
+      localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(allData));
+      return true;
+    } catch (e) {
+      showToast("Gagal menyimpan ke memori perangkat.");
+      return false;
+    }
+  }
+
+  function captureCurrentCityData() {
+    if (!engine || !citySim) return null;
+
+    const pos = engine.terrainGeo.attributes.position;
+    const heights = new Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {
+      heights[i] = Math.round(pos.getY(i) * 100) / 100;
+    }
+
+    const cellsData = [];
+    for (let gx = 0; gx < citySim.gridSize; gx++) {
+      for (let gz = 0; gz < citySim.gridSize; gz++) {
+        const c = citySim.grid[gx][gz];
+        if (c.type !== "empty" && c.type !== "starter_highway" || c.zone || c.building) {
+          cellsData.push({
+            gx,
+            gz,
+            type: c.type,
+            oneWayDir: c.oneWayDir,
+            hasSidewalkTrees: c.hasSidewalkTrees,
+            zone: c.zone,
+            building: c.building
+              ? {
+                  zone: c.building.zone,
+                  level: c.building.level,
+                  stage: c.building.stage,
+                  facingYaw: c.building.facingYaw
+                }
+              : null
+          });
+        }
+      }
+    }
+
+    return {
+      savedAt: new Date().toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" }),
+      regionId: state.region.id,
+      regionName: state.region.name,
+      modeKey: state.modeKey,
+      difficultyKey: state.difficultyKey,
+      money: state.money === Infinity ? "INFINITY" : state.money,
+      population: state.population,
+      happiness: state.happiness,
+      hour: state.hour,
+      levelLabel: getRegionLevelLabel(state.population),
+      heights,
+      cellsData
+    };
+  }
+
+  function saveToSlot(slotKey, silent = false) {
+    const data = captureCurrentCityData();
+    if (!data) return;
+    const all = loadAllSaveSlots();
+    all[slotKey] = data;
+    if (writeAllSaveSlots(all) && !silent) {
+      showToast(`Kota ${data.regionName} berhasil disimpan!`);
+      renderSaveSlotsModal();
+    }
+  }
+
+  function loadFromSlot(slotKey) {
+    const all = loadAllSaveSlots();
+    const data = all[slotKey];
+    if (!data) return;
+
+    const reg = window.INDONESIA_REGIONS.find((r) => r.id === data.regionId) || window.INDONESIA_REGIONS[0];
+    state.region = reg;
+    state.modeKey = data.modeKey || "sandbox";
+    state.difficultyKey = data.difficultyKey || "medium";
+    state.money = data.money === "INFINITY" ? Infinity : Number(data.money);
+    state.population = data.population || 0;
+    state.happiness = data.happiness || 82;
+    state.hour = data.hour || 7.5;
+
+    ensureMainEngine();
+    clearActiveTool();
+    engine.loadRegion(reg);
+    citySim.resetCity(reg);
+
+    // Pulihkan kontur tanah yang sudah diubah pemain
+    if (Array.isArray(data.heights)) {
+      const pos = engine.terrainGeo.attributes.position;
+      const len = Math.min(pos.count, data.heights.length);
+      for (let i = 0; i < len; i++) {
+        pos.setY(i, data.heights[i]);
+      }
+      pos.needsUpdate = true;
+      engine._recolorAndNormals();
+      engine._updateWaterDepthTexture();
+    }
+
+    // Pulihkan jalan, zona, utilitas, dan bangunan
+    const roadCoords = [];
+    (data.cellsData || []).forEach((item) => {
+      const cell = citySim.getCell(item.gx, item.gz);
+      if (!cell || cell.type === "starter_highway") return;
+
+      const wp = citySim.gridToWorld(item.gx, item.gz);
+      const gy = engine.getHeightAt(wp.x, wp.z);
+      cell.type = item.type || "empty";
+      cell.oneWayDir = item.oneWayDir || null;
+      cell.hasSidewalkTrees = Boolean(item.hasSidewalkTrees);
+      cell.zone = item.zone || null;
+
+      if (citySim.isRoadTool(cell.type)) {
+        engine.clearVegetationNear(wp.x, wp.z, 2.4);
+        roadCoords.push([item.gx, item.gz]);
+      } else if (cell.type === "alun_plaza") {
+        cell.mesh = citySim._createAlunPlazaMesh(wp.x, gy, wp.z, false);
+        citySim.rootGroup.add(cell.mesh);
+      } else if (cell.type === "pln") {
+        engine.clearVegetationNear(wp.x, wp.z, 2.7);
+        cell.mesh = citySim._createPLNMesh(wp.x, gy, wp.z, 0);
+        citySim.rootGroup.add(cell.mesh);
+      } else if (cell.type === "pdam") {
+        engine.clearVegetationNear(wp.x, wp.z, 2.7);
+        cell.mesh = citySim._createPDAMMesh(wp.x, gy, wp.z, 0);
+        citySim.rootGroup.add(cell.mesh);
+      }
+
+      if (cell.zone && !item.building) {
+        citySim._updateZoneOverlay(cell, wp.x, gy, wp.z);
+      }
+
+      if (item.building) {
+        engine.clearVegetationNear(wp.x, wp.z, 2.4);
+        const meta = {};
+        const mesh = citySim._createBuildingMesh(
+          item.gx,
+          item.gz,
+          item.building.zone,
+          item.building.level,
+          item.building.stage,
+          wp.x,
+          gy,
+          wp.z,
+          item.building.facingYaw || 0,
+          meta
+        );
+        citySim.rootGroup.add(mesh);
+        const bObj = {
+          zone: item.building.zone,
+          level: item.building.level,
+          stage: item.building.stage,
+          facingYaw: item.building.facingYaw || 0,
+          mesh,
+          isCafe: Boolean(meta.isCafe),
+          beacon: meta.beacon || null
+        };
+        cell.building = bObj;
+        citySim.buildings.push(bObj);
+      }
+    });
+
+    roadCoords.forEach(([gx, gz]) => citySim._rebuildRoadAndNeighbors(gx, gz));
+    citySim._recalculateNetworks();
+
+    document.getElementById("saveload-modal").classList.add("hidden");
+    document.getElementById("pause-modal").classList.add("hidden");
+    enterActiveGameplay(false);
+    showToast(`Berhasil memuat kota ${reg.name}!`);
+  }
+
+  function deleteSaveSlot(slotKey) {
+    const all = loadAllSaveSlots();
+    delete all[slotKey];
+    writeAllSaveSlots(all);
+    renderSaveSlotsModal();
+    showToast("Slot penyimpanan dihapus.");
+  }
+
+  function renderSaveSlotsModal() {
+    const list = document.getElementById("save-slots-list");
+    const all = loadAllSaveSlots();
+    const slots = [
+      { key: "autosave", title: "⏱️ AUTO-SAVE (Otomatis tiap 3 Menit)", isAuto: true },
+      { key: "slot_1", title: "💾 SLOT SIMPAN 1", isAuto: false },
+      { key: "slot_2", title: "💾 SLOT SIMPAN 2", isAuto: false },
+      { key: "slot_3", title: "💾 SLOT SIMPAN 3", isAuto: false },
+      { key: "slot_4", title: "💾 SLOT SIMPAN 4", isAuto: false }
+    ];
+
+    list.innerHTML = "";
+    slots.forEach((s) => {
+      const data = all[s.key];
+      const card = document.createElement("div");
+      card.className = "save-slot-card";
+
+      const modeBadge = data
+        ? data.modeKey === "sandbox"
+          ? "Sandbox (∞)"
+          : `Real • ${DIFFICULTY_CONFIG[data.difficultyKey]?.label || "Medium"}`
+        : "";
+
+      card.innerHTML = `
+        <div class="slot-meta">
+          <h4>${s.title}</h4>
+          ${
+            data
+              ? `<p><strong>${data.regionName}</strong> • ${data.levelLabel || "Lv.1 Desa"} • 👥 ${Number(data.population).toLocaleString("id-ID")} • ${modeBadge} (${data.savedAt})</p>`
+              : `<p>Slot kosong — belum ada kota tersimpan</p>`
+          }
+        </div>
+        <div class="slot-actions">
+          ${state.inGame && !s.isAuto ? `<button class="slot-btn slot-save" data-act="save" data-slot="${s.key}">Simpan</button>` : ""}
+          ${data ? `<button class="slot-btn slot-load" data-act="load" data-slot="${s.key}">▶ Lanjutkan</button>` : ""}
+          ${data ? `<button class="slot-btn slot-del" data-act="del" data-slot="${s.key}">🗑️</button>` : ""}
+        </div>
+      `;
+      list.appendChild(card);
+    });
+
+    list.querySelectorAll("button[data-act]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const act = btn.dataset.act;
+        const slot = btn.dataset.slot;
+        if (act === "save") saveToSlot(slot, false);
+        if (act === "load") loadFromSlot(slot);
+        if (act === "del") deleteSaveSlot(slot);
+      });
+    });
+  }
+
+  // =========================================================
+  // 4. ALUR MENU UTAMA -> MODE -> KESULITAN -> PETA -> GAME
+  // =========================================================
+  function showMainMenu() {
+    state.inGame = false;
+    clearActiveTool();
+    hideAllScreens();
+    document.getElementById("main-menu-screen").classList.remove("hidden");
+  }
+
+  function showModeSelect() {
+    hideAllScreens();
+    document.getElementById("mode-select-screen").classList.remove("hidden");
+  }
+
+  function showDifficultySelect() {
+    hideAllScreens();
+    document.getElementById("difficulty-select-screen").classList.remove("hidden");
+  }
+
+  function showMapSelect() {
+    hideAllScreens();
+    const badge = document.getElementById("map-mode-badge");
+    if (state.modeKey === "sandbox") {
+      badge.textContent = "Mode: 🏖️ Sandbox (Dana ∞)";
+    } else {
+      const diff = DIFFICULTY_CONFIG[state.difficultyKey];
+      badge.textContent = `Mode: 🏛️ Real Mode • ${diff.label}`;
+    }
+    document.getElementById("map-select-screen").classList.remove("hidden");
+    update3DMapPreview(state.region);
+  }
+
+  function enterActiveGameplay(isFreshNewCity = true) {
+    state.inGame = true;
+    hideAllScreens();
+    document.getElementById("hud-layer").classList.remove("hidden");
+
+    if (isFreshNewCity) {
+      if (state.modeKey === "sandbox") {
+        state.money = Infinity;
+      } else {
+        state.money = DIFFICULTY_CONFIG[state.difficultyKey].startMoney;
+      }
+      state.population = 0;
+      state.happiness = 82;
+      state.hour = 7.5;
+
+      ensureMainEngine();
+      clearActiveTool();
+      engine.loadRegion(state.region);
+      citySim.resetCity(state.region);
+      resetChatWelcome();
+      showToast(`Selamat menjabat di ${state.region.name}! Populasi mulai dari 0 jiwa.`);
+    }
+
+    engine.updateAtmosphere(state.hour);
+    updateHUD();
+  }
+
+  function initScreensAndFlows() {
+    // Tombol Menu Utama
+    document.getElementById("btn-menu-play").addEventListener("click", showModeSelect);
+
+    document.getElementById("btn-menu-saveload").addEventListener("click", () => {
+      renderSaveSlotsModal();
+      document.getElementById("saveload-modal").classList.remove("hidden");
+    });
+
+    document.getElementById("btn-menu-settings").addEventListener("click", () => {
+      document.getElementById("settings-modal").classList.remove("hidden");
+    });
+
+    document.getElementById("btn-menu-exit").addEventListener("click", () => {
+      document.getElementById("exit-modal").classList.remove("hidden");
+    });
+
+    // Tombol Pilihan Mode
+    document.getElementById("btn-back-to-menu").addEventListener("click", showMainMenu);
+
+    document.getElementById("btn-choose-sandbox").addEventListener("click", () => {
+      state.modeKey = "sandbox";
+      showMapSelect(); // Sandbox langsung ke Pemilihan Peta!
+    });
+
+    document.getElementById("btn-choose-real").addEventListener("click", () => {
+      state.modeKey = "real";
+      showDifficultySelect(); // Real Mode ke Tingkat Kesulitan dulu!
+    });
+
+    // Tombol Pilihan Tingkat Kesulitan (Real Mode)
+    document.getElementById("btn-back-to-mode").addEventListener("click", showModeSelect);
+
+    document.querySelectorAll(".diff-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        state.difficultyKey = card.dataset.diff;
+        showMapSelect();
+      });
+    });
+
+    // Daftar Kota di Pemilihan Peta Split-Screen
+    const grid = document.getElementById("region-grid");
+    window.INDONESIA_REGIONS.forEach((reg, idx) => {
+      const card = document.createElement("button");
+      card.className = "region-card" + (idx === 0 ? " active" : "");
+      card.innerHTML = `
+        <div class="reg-top">
+          <span>${reg.name}</span>
+          <span class="reg-temp">${reg.baseTemp}°C</span>
+        </div>
+        <div class="reg-biome">${reg.biomeLabel} • ${reg.weatherLabel}</div>
+        <div class="reg-desc">${reg.desc}</div>
+      `;
+      card.addEventListener("click", () => {
+        document.querySelectorAll(".region-card").forEach((c) => c.classList.remove("active"));
+        card.classList.add("active");
+        state.region = reg;
+
+        document.getElementById("preview-reg-name").textContent = reg.name;
+        document.getElementById("preview-reg-temp").textContent = `${reg.baseTemp}°C`;
+        document.getElementById("preview-reg-biome").textContent = `${reg.biomeLabel} • ${reg.weatherLabel}`;
+        document.getElementById("preview-reg-desc").textContent = reg.desc;
+        update3DMapPreview(reg);
+      });
+      grid.appendChild(card);
+    });
+
+    document.getElementById("btn-back-from-map").addEventListener("click", () => {
+      if (state.modeKey === "real") showDifficultySelect();
+      else showModeSelect();
+    });
+
+    document.getElementById("btn-start-city").addEventListener("click", () => {
+      enterActiveGameplay(true);
+    });
+
+    // Modals (Save/Load, Settings, Pause, Exit)
+    document.getElementById("btn-close-saveload").addEventListener("click", () => {
+      document.getElementById("saveload-modal").classList.add("hidden");
+    });
+
+    document.getElementById("btn-close-settings").addEventListener("click", () => {
+      document.getElementById("settings-modal").classList.add("hidden");
+    });
+
+    document.getElementById("set-graphics-quality").addEventListener("change", (e) => {
+      state.settings.quality = e.target.value;
+      applyGraphicsSettings();
+      showToast(`Kualitas grafis diatur ke: ${e.target.options[e.target.selectedIndex].text}`);
+    });
+
+    document.getElementById("set-zoom-speed").addEventListener("change", (e) => {
+      state.settings.zoomSpeed = Number(e.target.value);
+    });
+
+    document.getElementById("set-show-grid").addEventListener("change", (e) => {
+      state.settings.showGrid = e.target.checked;
+      if (engine && !state.settings.showGrid) engine.setGridVisible(false);
+    });
+
+    document.getElementById("btn-replay-intro").addEventListener("click", () => {
+      document.getElementById("settings-modal").classList.add("hidden");
+      hideAllScreens();
+      playIntroCinematic(() => {
+        if (state.inGame) {
+          document.getElementById("hud-layer").classList.remove("hidden");
+        } else {
+          showMainMenu();
+        }
+      });
+    });
+
+    // Menu Jeda & Simpan Dalam Game
+    document.getElementById("btn-game-menu").addEventListener("click", () => {
+      document.getElementById("pause-modal").classList.remove("hidden");
+    });
+
+    document.getElementById("btn-close-pause").addEventListener("click", () => {
+      document.getElementById("pause-modal").classList.add("hidden");
+    });
+
+    document.getElementById("btn-pause-resume").addEventListener("click", () => {
+      document.getElementById("pause-modal").classList.add("hidden");
+    });
+
+    document.getElementById("btn-pause-save").addEventListener("click", () => {
+      document.getElementById("pause-modal").classList.add("hidden");
+      renderSaveSlotsModal();
+      document.getElementById("saveload-modal").classList.remove("hidden");
+    });
+
+    document.getElementById("btn-pause-load").addEventListener("click", () => {
+      document.getElementById("pause-modal").classList.add("hidden");
+      renderSaveSlotsModal();
+      document.getElementById("saveload-modal").classList.remove("hidden");
+    });
+
+    document.getElementById("btn-pause-settings").addEventListener("click", () => {
+      document.getElementById("pause-modal").classList.add("hidden");
+      document.getElementById("settings-modal").classList.remove("hidden");
+    });
+
+    document.getElementById("btn-pause-mainmenu").addEventListener("click", () => {
+      saveToSlot("autosave", true);
+      document.getElementById("pause-modal").classList.add("hidden");
+      showMainMenu();
+      showToast("Progres disimpan otomatis ke Auto-Save.");
+    });
+
+    // Exit Confirmation
+    document.getElementById("btn-close-exit").addEventListener("click", () => {
+      document.getElementById("exit-modal").classList.add("hidden");
+    });
+    document.getElementById("btn-cancel-exit").addEventListener("click", () => {
+      document.getElementById("exit-modal").classList.add("hidden");
+    });
+    document.getElementById("btn-confirm-exit").addEventListener("click", () => {
+      document.getElementById("exit-modal").classList.add("hidden");
+      showToast("Silakan tutup jendela aplikasi untuk keluar sepenuhnya.");
+    });
+  }
+
+  // =========================================================
+  // 5. KONTROL HUD, DOCK & CHAT ASISTEN AI
+  // =========================================================
   function updateBlueprintUI(bp) {
     const bar = document.getElementById("blueprint-bar");
     const info = document.getElementById("blueprint-info");
@@ -102,18 +766,8 @@
     const costText = bp.totalCost > 0 ? ` • Rp ${bp.totalCost.toFixed(2)} M` : "";
     info.textContent = `${name}: ${sizeText}${costText}`;
 
-    if (bp.toolId === "pln" || bp.toolId === "pdam") {
-      rotBtn.classList.remove("hidden");
-    } else {
-      rotBtn.classList.add("hidden");
-    }
-
-    if (citySim && citySim.isRoadTool(bp.toolId) && bp.shape === "curved") {
-      curveBtn.classList.remove("hidden");
-    } else {
-      curveBtn.classList.add("hidden");
-    }
-
+    rotBtn.classList.toggle("hidden", !(bp.toolId === "pln" || bp.toolId === "pdam"));
+    curveBtn.classList.toggle("hidden", !(citySim && citySim.isRoadTool(bp.toolId) && bp.shape === "curved"));
     bar.classList.remove("hidden");
   }
 
@@ -155,88 +809,12 @@
     document.querySelectorAll(".sub-btn").forEach((x) => x.classList.remove("active"));
   }
 
-  function initLauncher() {
-    const grid = document.getElementById("region-grid");
-    const summary = document.getElementById("selected-summary");
-
-    window.INDONESIA_REGIONS.forEach((reg, idx) => {
-      const card = document.createElement("button");
-      card.className = "region-card" + (idx === 0 ? " active" : "");
-      card.innerHTML = `
-        <div class="reg-top">
-          <span>${reg.name}</span>
-          <span class="reg-temp">${reg.baseTemp}°C</span>
-        </div>
-        <div class="reg-biome">${reg.biomeLabel} • ${reg.weatherLabel}</div>
-        <div class="reg-desc">${reg.desc}</div>
-      `;
-      card.addEventListener("click", () => {
-        document.querySelectorAll(".region-card").forEach((c) => c.classList.remove("active"));
-        card.classList.add("active");
-        state.region = reg;
-        summary.innerHTML = `Terpilih: <strong>${reg.name}</strong> • ${reg.biomeLabel} (${reg.baseTemp}°C)`;
-      });
-      grid.appendChild(card);
-    });
-
-    document.querySelectorAll(".mode-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".mode-btn").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        state.modeKey = btn.dataset.mode;
-      });
-    });
-
-    document.getElementById("btn-start-city").addEventListener("click", () => {
-      const modeCfg = window.GAME_MODES[state.modeKey];
-      state.money = modeCfg.startMoney;
-      state.population = 0;
-      state.happiness = 82;
-      state.hour = 7.5;
-
-      document.getElementById("launcher-screen").classList.add("hidden");
-      document.getElementById("hud-layer").classList.remove("hidden");
-
-      if (!engine) {
-        engine = new NusantaraGraphicsHD(document.getElementById("game-canvas"), {
-          onSelectionStart: (wx, wz, toolId) => {
-            if (!citySim) return;
-            const bp = citySim.beginSelection(wx, wz, toolId);
-            updateBlueprintUI(bp);
-          },
-          onSelectionMove: (wx, wz, toolId) => {
-            if (!citySim) return;
-            const bp = citySim.updateSelection(wx, wz, toolId);
-            updateBlueprintUI(bp);
-          },
-          onSelectionEnd: () => {
-            if (citySim && citySim.pendingBlueprint) {
-              updateBlueprintUI(citySim.pendingBlueprint);
-            }
-          }
-        });
-        citySim = new CityRCISystem(engine);
-        engine.onAtmosphereChange = (isNight) => citySim.updateNightLighting(isNight);
-        startLoop();
-      }
-
-      clearActiveTool();
-      engine.loadRegion(state.region);
-      citySim.resetCity(state.region);
-      engine.updateAtmosphere(state.hour);
-      updateHUD();
-      resetChatWelcome();
-      showToast(`Selamat menjabat di ${state.region.name}! Populasi mulai dari 0 jiwa.`);
-    });
-  }
-
   function updateHUD() {
     const reg = state.region;
     const isNight = state.hour < 5.5 || state.hour > 18.5;
     const liveTemp = isNight ? reg.baseTemp - 3 : reg.baseTemp + (state.hour > 11 && state.hour < 15 ? 2 : 0);
 
     if (citySim) {
-      // Populasi HANYA dihitung dari rumah yang benar-benar sudah selesai dibangun (0 saat awal/konstruksi)
       state.population = citySim.stats.completedResPop;
       const penalty = citySim.stats.unpoweredCount * 3 + citySim.stats.unwateredCount * 3;
       const bonus = Math.min(12, citySim.stats.cBuildings + citySim.stats.cafeCount);
@@ -248,7 +826,8 @@
     }
 
     document.getElementById("hud-city-name").textContent = `📍 ${reg.name}`;
-    document.getElementById("hud-weather").textContent = `${liveTemp}°C ${isNight ? "Malam Sejuk" : reg.weatherLabel}`;
+    document.getElementById("hud-level-badge").textContent = getRegionLevelLabel(state.population);
+    document.getElementById("hud-weather").textContent = `${liveTemp}°C`;
     document.getElementById("hud-happiness").textContent = `${state.happiness >= 65 ? "😊" : "😠"} ${state.happiness}%`;
 
     const budgetText = state.money === Infinity ? "💰 ∞ Sandbox" : `💰 Rp ${state.money.toFixed(1)} M`;
@@ -287,7 +866,7 @@
           sb.textContent = item.label;
           sb.addEventListener("click", () => {
             if (item.id.startsWith("info_")) {
-              showToast("Fitur ini langsung hadir di Paket B berikutnya!");
+              showToast("Fitur ini hadir di Update Tahap berikutnya!");
               return;
             }
             if (state.activeSubTool === item.id) {
@@ -300,10 +879,10 @@
               if (engine) {
                 engine.activeTool = item.id;
                 const isSculpt = ["raise", "lower", "flatten", "tree"].includes(item.id);
-                engine.setGridVisible(!isSculpt);
+                engine.setGridVisible(!isSculpt && state.settings.showGrid);
               }
               updateLensAndRoadBars(item.id);
-              showToast(`Alat aktif: ${item.label}. Tarik di peta lalu tekan ✓ Bangun.`);
+              showToast(`Alat aktif: ${item.label}. Tarik di peta lalu ketuk ✓ Bangun.`);
             }
           });
           subMenu.appendChild(sb);
@@ -322,13 +901,6 @@
           citySim.clearBlueprint();
           updateBlueprintUI(null);
         }
-        const label =
-          btn.dataset.shape === "roundabout"
-            ? "Mode Bundaran Alun-Alun: Sentuh pusat & tarik radius lingkaran."
-            : btn.dataset.shape === "curved"
-              ? "Mode Jalan Melengkung: Tarik dari titik awal ke tujuan."
-              : "Mode Jalan Lurus Presisi aktif.";
-        showToast(label);
       });
     });
 
@@ -350,14 +922,12 @@
 
     document.getElementById("btn-bp-curve").addEventListener("click", () => {
       if (!citySim) return;
-      const bp = citySim.toggleCurveDirection();
-      updateBlueprintUI(bp);
+      updateBlueprintUI(citySim.toggleCurveDirection());
     });
 
     document.getElementById("btn-bp-rotate").addEventListener("click", () => {
       if (!citySim) return;
-      const bp = citySim.rotateBlueprint();
-      updateBlueprintUI(bp);
+      updateBlueprintUI(citySim.rotateBlueprint());
     });
 
     document.getElementById("btn-bp-cancel").addEventListener("click", () => {
@@ -378,10 +948,6 @@
         state.speed = Number(btn.dataset.speed);
       });
     });
-
-    document.getElementById("btn-city-menu").addEventListener("click", () => {
-      document.getElementById("launcher-screen").classList.remove("hidden");
-    });
   }
 
   function resetChatWelcome() {
@@ -389,7 +955,7 @@
     box.innerHTML = "";
     appendChatMsg(
       "ai",
-      `Halo Kepala Daerah! Selamat datang di <strong>${state.region.name}</strong>.<br><br>• <strong>Paket A Aktif:</strong> Pohon bercabang daun asli, rumput helai alami, air sungai/pantai beriak &amp; berbuih, jalan raya 100% menyambung mulus, rumah &amp; gedung bertekstur, kafe nongkrong <em>outdoor</em>, warga jalan kaki, serta <em>city light</em> malam.<br>• <strong>Populasi Realistis:</strong> Kota mulai dari <strong>0 jiwa</strong> dan warga baru pindah setelah rumah selesai dibangun.`
+      `Selamat datang di <strong>${state.region.name}</strong> (${getRegionLevelLabel(state.population)})!<br>Progres kotamu akan tersimpan otomatis setiap 3 menit ke <strong>Auto-Save</strong>, atau kamu bisa menyimpannya kapan saja lewat tombol <strong>💾 Simpan / Menu</strong> di kanan atas.`
     );
   }
 
@@ -404,28 +970,20 @@
 
   function generateSmartAIResponse(query) {
     const q = query.toLowerCase();
-    const reg = state.region;
     const s = citySim ? citySim.stats : null;
-
     if (s && (q.includes("progress") || q.includes("cek"))) {
-      return `<strong>Laporan Kota ${reg.name}:</strong><br>• <strong>Populasi Nyata:</strong> ${state.population.toLocaleString("id-ID")} jiwa (Kepuasan ${state.happiness}%)<br>• <strong>Kafe Nongkrong Aktif:</strong> ${s.cafeCount} kafe <em>outdoor</em><br>• <strong>Jaringan Jalan:</strong> ${s.roads} petak | <strong>Utilitas:</strong> ${s.plnCount} PLN, ${s.pdamCount} PDAM<br>• <strong>Tingkat Bangunan (R/C/I):</strong> ${s.rBuildings} / ${s.cBuildings} / ${s.iBuildings}`;
+      return `<strong>Status Wilayah: ${getRegionLevelLabel(state.population)}</strong><br>• Populasi: ${state.population.toLocaleString("id-ID")} jiwa (Kepuasan ${state.happiness}%)<br>• Kafe Nongkrong: ${s.cafeCount} | Bangunan (R/C/I): ${s.rBuildings}/${s.cBuildings}/${s.iBuildings}`;
     }
-
-    if (q.includes("bundaran") || q.includes("melengkung")) {
-      return `<strong>Cara Buat Jalan Melengkung &amp; Bundaran Alun-Alun:</strong><br>1. Pilih jenis jalan di <strong>🛣️ Tata Kota</strong>.<br>2. Pilih <strong>〰️ Melengkung</strong> atau <strong>⭕ Bundaran Alun-Alun</strong> di bilah kiri atas.<br>3. Tarik di peta lalu ketuk <strong>✓ Bangun</strong>.`;
+    if (q.includes("level")) {
+      return `<strong>Jenjang Level Wilayah:</strong><br>• Lv.1 Desa Rintisan: 0–999 jiwa<br>• Lv.2 Kota Kecil: 1.000–4.999 jiwa<br>• Lv.3 Kota Madya: 5.000–19.999 jiwa<br>• Lv.4 Metropolitan: 20.000–74.999 jiwa<br>• Lv.5 Megapolitan: 75.000+ jiwa`;
     }
-
-    return `Saya memantau <strong>${reg.name}</strong>. Sambungkan jalan dari <strong>${reg.highway.label}</strong>, buat zona <strong>Hijau (Hunian)</strong> &amp; <strong>Biru (Komersial &amp; Kafe)</strong>, lalu pasang PLN &amp; PDAM agar kota tumbuh menjadi gedung tinggi dan bercahaya indah di malam hari.`;
+    return `Sambungkan jalan dari <strong>${state.region.highway.label}</strong>, bangun zona RCI serta PLN &amp; PDAM agar desamu berkembang menjadi kota besar.`;
   }
 
   function initChat() {
     const drawer = document.getElementById("ai-chat-drawer");
-    document.getElementById("btn-open-chat").addEventListener("click", () => {
-      drawer.classList.remove("closed");
-    });
-    document.getElementById("btn-close-chat").addEventListener("click", () => {
-      drawer.classList.add("closed");
-    });
+    document.getElementById("btn-open-chat").addEventListener("click", () => drawer.classList.remove("closed"));
+    document.getElementById("btn-close-chat").addEventListener("click", () => drawer.classList.add("closed"));
 
     document.querySelectorAll(".chip-btn").forEach((chip) => {
       chip.addEventListener("click", () => {
@@ -446,17 +1004,30 @@
     });
   }
 
+  // =========================================================
+  // 6. MAIN RENDER & SIMULATION LOOP
+  // =========================================================
   function startLoop() {
     let lastTime = performance.now();
     let hudTimer = 0;
     let taxTimer = 0;
+    let autoSaveTimer = 0;
 
     function tick(now) {
       const delta = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
 
-      if (state.speed > 0) {
-        // Kecepatan waktu realistis: 1 jam game = ~40 detik waktu nyata di mode 1x
+      if (!state.inGame && engine) {
+        // Putar kamera panorama kota di latar belakang Menu Utama
+        engine.camThetaGoal += delta * 0.08;
+      }
+
+      if (!document.getElementById("map-select-screen").classList.contains("hidden") && previewRenderer && previewMesh) {
+        previewMesh.rotation.y += delta * 0.45;
+        previewRenderer.render(previewScene, previewCamera);
+      }
+
+      if (state.inGame && state.speed > 0) {
         state.hour = (state.hour + delta * 0.025 * state.speed) % 24;
         if (engine) engine.updateAtmosphere(state.hour);
         if (citySim) citySim.stepSimulation(delta, state.speed);
@@ -465,14 +1036,22 @@
         if (taxTimer >= 12 && citySim && state.money !== Infinity) {
           taxTimer = 0;
           const s = citySim.stats;
+          const mult = DIFFICULTY_CONFIG[state.difficultyKey]?.upkeepMult || 1.0;
           const taxIncome = s.rBuildings * 0.25 + s.cBuildings * 0.45 + s.iBuildings * 0.55;
-          const upkeep = s.roads * 0.015 + s.plnCount * 0.35 + s.pdamCount * 0.28;
+          const upkeep = (s.roads * 0.015 + s.plnCount * 0.35 + s.pdamCount * 0.28) * mult;
           state.money = Math.max(0, state.money + taxIncome - upkeep);
+        }
+
+        // Auto-Save otomatis setiap 3 menit (180 detik)
+        autoSaveTimer += delta;
+        if (autoSaveTimer >= 180) {
+          autoSaveTimer = 0;
+          saveToSlot("autosave", true);
         }
       }
 
       hudTimer += delta;
-      if (hudTimer >= 0.4) {
+      if (state.inGame && hudTimer >= 0.4) {
         hudTimer = 0;
         updateHUD();
       }
@@ -485,9 +1064,23 @@
   }
 
   function bootApp() {
-    initLauncher();
+    // Blokir contextmenu bawaan iOS di luar input chat
+    document.addEventListener("contextmenu", (e) => {
+      if (!["INPUT", "TEXTAREA"].includes(e.target.tagName)) {
+        e.preventDefault();
+      }
+    });
+
+    ensureMainEngine();
+    initScreensAndFlows();
     initDock();
     initChat();
+    startLoop();
+
+    // Jalankan Intro Sinematik saat aplikasi pertama kali dibuka
+    playIntroCinematic(() => {
+      showMainMenu();
+    });
   }
 
   if (document.readyState === "loading") {
