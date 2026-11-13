@@ -150,28 +150,6 @@
     return true;
   }
 
-  // Generate PNG Apple Touch Icon secara dinamis dari SVG Logo Peta Indonesia
-  function generateAppleTouchIconPNG() {
-    try {
-      const img = new Image();
-      img.onload = () => {
-        const c = document.createElement("canvas");
-        c.width = 512;
-        c.height = 512;
-        const ctx = c.getContext("2d");
-        ctx.drawImage(img, 0, 0, 512, 512);
-        const link = document.getElementById("apple-touch-icon-link");
-        if (link) link.href = c.toDataURL("image/png");
-      };
-      img.src = "assets/logo-nusantara.svg";
-    } catch (e) {
-      // Abaikan jika browser membatasi canvas export
-    }
-  }
-
-  // =========================================================
-  // 1. INTRO SINEMATIK SIMPEL & ANTI-STUCK
-  // =========================================================
   function clearIntroTimers() {
     introTimers.forEach((t) => clearTimeout(t));
     introTimers = [];
@@ -179,7 +157,6 @@
 
   function playIntroCinematic(onComplete) {
     clearIntroTimers();
-
     const splash = document.getElementById("intro-splash");
     const stageTitle = document.getElementById("splash-stage-title");
     const stageLogo = document.getElementById("splash-stage-logo");
@@ -218,9 +195,6 @@
     splash.onclick = finishIntro;
   }
 
-  // =========================================================
-  // 2. BLOKIR POPUP COPY/PASTE iOS SECARA GLOBAL
-  // =========================================================
   function installIOSSelectionGuard() {
     const isEditable = (el) =>
       el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
@@ -247,9 +221,6 @@
     });
   }
 
-  // =========================================================
-  // 3. ENGINE 3D & KARTU INSPEKSI BANGUNAN
-  // =========================================================
   function showInspectCard(info) {
     const card = document.getElementById("inspect-card");
     if (!info) {
@@ -294,13 +265,11 @@
     engine = new NusantaraGraphicsHD(document.getElementById("game-canvas"), {
       onSelectionStart: (wx, wz, toolId) => {
         if (!citySim || !state.inGame) return;
-        const bp = citySim.beginSelection(wx, wz, toolId);
-        updateBlueprintUI(bp);
+        updateBlueprintUI(citySim.beginSelection(wx, wz, toolId));
       },
       onSelectionMove: (wx, wz, toolId) => {
         if (!citySim || !state.inGame) return;
-        const bp = citySim.updateSelection(wx, wz, toolId);
-        updateBlueprintUI(bp);
+        updateBlueprintUI(citySim.updateSelection(wx, wz, toolId));
       },
       onSelectionEnd: () => {
         if (citySim && citySim.pendingBlueprint && state.inGame) {
@@ -309,8 +278,7 @@
       },
       onTapInspect: (wx, wz) => {
         if (!citySim || !state.inGame) return;
-        const info = citySim.inspectAtWorld(wx, wz);
-        showInspectCard(info);
+        showInspectCard(citySim.inspectAtWorld(wx, wz));
       }
     });
     citySim = new CityRCISystem(engine);
@@ -377,7 +345,7 @@
         previewMesh.geometry.dispose();
       }
 
-      const segs = 56;
+      const segs = 52;
       const size = 64;
       const geo = new THREE.PlaneGeometry(size, size, segs, segs);
       geo.rotateX(-Math.PI / 2);
@@ -416,14 +384,10 @@
       previewScene.add(previewMesh);
       previewActive = true;
     } catch (err) {
-      console.warn("Preview 3D fallback:", err);
       previewActive = false;
     }
   }
 
-  // =========================================================
-  // 4. SISTEM SAVE & LOAD
-  // =========================================================
   function loadAllSaveSlots() {
     try {
       const raw = localStorage.getItem(SAVE_STORAGE_KEY);
@@ -580,13 +544,11 @@
         const bObj = {
           zone: item.building.zone,
           level: item.building.level,
-          stage: "done",
           mesh: built.mesh,
           isCafe: built.isCafe,
           isTerraced: built.isTerraced,
-          pop: 18,
-          needs: {},
-          upgradeBlockedReason: ""
+          pop: 24,
+          needs: {}
         };
         cell.building = bObj;
         citySim.buildings.push(bObj);
@@ -594,7 +556,6 @@
     });
 
     citySim._recalculateNetworks();
-
     document.getElementById("saveload-modal").classList.add("hidden");
     document.getElementById("pause-modal").classList.add("hidden");
     enterActiveGameplay(false);
@@ -661,9 +622,6 @@
     });
   }
 
-  // =========================================================
-  // 5. ALUR MENU UTAMA -> MODE -> KESULITAN -> PETA -> GAME
-  // =========================================================
   function showMainMenu() {
     state.inGame = false;
     clearActiveTool();
@@ -695,41 +653,46 @@
   }
 
   function enterActiveGameplay(isFreshNewCity = true) {
-    // 1. Segera tutup seluruh layar menu & tampilkan HUD agar respons 100% instan
-    state.inGame = true;
+    // Sembunyikan layar pilih peta dan tampilkan HUD segera di frame ini
     previewActive = false;
     hideAllScreens();
     document.getElementById("hud-layer").classList.remove("hidden");
 
-    try {
-      ensureMainEngine();
-      if (isFreshNewCity) {
-        state.money =
-          state.modeKey === "sandbox" ? Infinity : DIFFICULTY_CONFIG[state.difficultyKey].startMoney;
-        state.population = 0;
-        state.happiness = 82;
-        state.hour = 7.5;
-
-        clearActiveTool();
-        if (engine && state.loadedRegionId !== state.region.id) {
-          engine.loadRegion(state.region);
-          state.loadedRegionId = state.region.id;
-        }
-        if (citySim) {
-          citySim.resetCity(state.region);
-        }
-        resetChatWelcome();
-        showToast(`Selamat menjabat di ${state.region.name}! Populasi mulai dari 0 jiwa.`);
-      }
-
-      if (engine) engine.updateAtmosphere(state.hour);
-      updateHUD();
-    } catch (err) {
-      console.error("Error memulai kota:", err);
-      showToast("Wilayah siap dibangun!");
-      updateHUD();
+    if (isFreshNewCity) {
+      state.money =
+        state.modeKey === "sandbox" ? Infinity : DIFFICULTY_CONFIG[state.difficultyKey].startMoney;
+      state.population = 0;
+      state.happiness = 82;
+      state.hour = 7.5;
     }
+    updateHUD();
+
+    // Jalankan pemuatan wilayah setelah browser menggambar ulang layar HUD
+    requestAnimationFrame(() => {
+      try {
+        ensureMainEngine();
+        if (isFreshNewCity) {
+          clearActiveTool();
+          if (engine && state.loadedRegionId !== state.region.id) {
+            engine.loadRegion(state.region);
+            state.loadedRegionId = state.region.id;
+          }
+          if (citySim) {
+            citySim.resetCity(state.region);
+          }
+          resetChatWelcome();
+          showToast(`Selamat menjabat di ${state.region.name}! Populasi mulai dari 0 jiwa.`);
+        }
+        if (engine) engine.updateAtmosphere(state.hour);
+        updateHUD();
+      } catch (err) {
+        console.error("Error memulai kota:", err);
+      }
+      state.inGame = true;
+    });
   }
+
+  window.startNusantaraCity = () => enterActiveGameplay(true);
 
   function initScreensAndFlows() {
     document.getElementById("btn-menu-play").addEventListener("click", showModeSelect);
@@ -789,7 +752,6 @@
       else showModeSelect();
     });
 
-    // Tombol Mulai Bangun Kota (responsif di sentuhan iOS & klik)
     const startBtn = document.getElementById("btn-start-city");
     let startLock = false;
     const triggerStartCity = (e) => {
@@ -879,9 +841,6 @@
     });
   }
 
-  // =========================================================
-  // 6. KONTROL HUD, MENU JALAN TERPISAH & CHAT AI
-  // =========================================================
   function updateBlueprintUI(bp) {
     const bar = document.getElementById("blueprint-bar");
     const info = document.getElementById("blueprint-info");
@@ -1099,7 +1058,7 @@
     box.innerHTML = "";
     appendChatMsg(
       "ai",
-      `Selamat menjabat di <strong>${state.region.name}</strong> (${getRegionLevelLabel(state.population)})!<br>Mulai dari menu <strong>🛣️ Jalan</strong> (Jalan 4 Lajur selebar 2 petak), tarik zona di <strong>🗺️ Zona &amp; Lahan</strong>, lalu penuhi kebutuhan warga ala <em>TheoTown</em> di <strong>🏛️ Layanan</strong>.`
+      `Selamat menjabat di <strong>${state.region.name}</strong> (${getRegionLevelLabel(state.population)})!<br>Mulai dari menu <strong>🛣️ Jalan</strong>, tarik zona di <strong>🗺️ Zona &amp; Lahan</strong>, lalu penuhi kebutuhan warga di <strong>🏛️ Layanan</strong>.`
     );
   }
 
@@ -1116,12 +1075,12 @@
     const q = query.toLowerCase();
     const s = citySim ? citySim.stats : null;
     if (s && (q.includes("kebutuhan") || q.includes("cek"))) {
-      return `<strong>Laporan Kebutuhan Warga (${getRegionLevelLabel(state.population)}):</strong><br>• Populasi: ${state.population.toLocaleString("id-ID")} jiwa<br>• PLN: ${s.plnCount} | PDAM: ${s.pdamCount} | Ibadah: ${s.worshipCount}<br>• Sekolah: ${s.schoolCount} | RSUD: ${s.healthCount} | Polsek: ${s.safetyCount}<br><em>Ketuk rumah/gedung mana saja saat mode bangun nonaktif untuk melihat status lengkapnya!</em>`;
+      return `<strong>Laporan Kebutuhan Warga (${getRegionLevelLabel(state.population)}):</strong><br>• Populasi: ${state.population.toLocaleString("id-ID")} jiwa<br>• PLN: ${s.plnCount} | PDAM: ${s.pdamCount} | Ibadah: ${s.worshipCount}<br>• Sekolah: ${s.schoolCount} | RSUD: ${s.healthCount} | Polsek: ${s.safetyCount}`;
     }
     if (q.includes("level")) {
-      return `<strong>Jenjang Level Wilayah:</strong><br>• Lv.1 Desa Rintisan: 0–999 jiwa<br>• Lv.2 Kota Kecil: 1.000–4.999 jiwa (butuh PLN, PDAM, Ibadah)<br>• Lv.3 Kota Madya: 5.000–19.999 jiwa (butuh Sekolah, RSUD, Polsek)<br>• Lv.4 Metropolitan: 20.000–74.999 jiwa<br>• Lv.5 Megapolitan: 75.000+ jiwa`;
+      return `<strong>Jenjang Level Wilayah:</strong><br>• Lv.1 Desa Rintisan: 0–999 jiwa<br>• Lv.2 Kota Kecil: 1.000–4.999 jiwa (butuh PLN, PDAM, Ibadah)<br>• Lv.3 Kota Madya: 5.000–19.999 jiwa (butuh Sekolah, RSUD, Polsek)`;
     }
-    return `Pilih <strong>🛣️ Jalan</strong> untuk menarik jalan raya (Jalan 4 Lajur otomatis selebar 2 petak sejajar tol), lalu bangun hunian &amp; layanan publik agar kota naik level.`;
+    return `Pilih <strong>🛣️ Jalan</strong> untuk menarik jalan raya, tarik zona hunian/komersial di <strong>🗺️ Zona &amp; Lahan</strong>, lalu lengkapi listrik &amp; air di <strong>🏛️ Layanan</strong>.`;
   }
 
   function initChat() {
@@ -1148,9 +1107,6 @@
     });
   }
 
-  // =========================================================
-  // 7. MAIN RENDER & SIMULATION LOOP
-  // =========================================================
   function startLoop() {
     let lastTime = performance.now();
     let hudTimer = 0;
@@ -1212,7 +1168,6 @@
 
   function bootApp() {
     installIOSSelectionGuard();
-    generateAppleTouchIconPNG();
 
     playIntroCinematic(() => {
       showMainMenu();
