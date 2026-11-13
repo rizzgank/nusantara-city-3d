@@ -8,10 +8,13 @@ class CityRCISystem {
     this.grid = [];
     this.buildings = [];
     this.vehicles = [];
+    this.pedestrians = [];
+    this.cafeHangoutSpots = [];
+    this.nightGlowMaterials = [];
+    this.aviationBeacons = [];
     this.lensMode = null;
 
-    // Opsi Jalan Fleksibel & Pohon Trotoar
-    this.roadShape = "straight"; // straight | curved | roundabout
+    this.roadShape = "straight";
     this.curveFlip = false;
     this.roadTreesEnabled = true;
 
@@ -29,6 +32,8 @@ class CityRCISystem {
       rBuildings: 0,
       cBuildings: 0,
       iBuildings: 0,
+      completedResPop: 0,
+      cafeCount: 0,
       unpoweredCount: 0,
       unwateredCount: 0
     };
@@ -45,28 +50,45 @@ class CityRCISystem {
     this.asphaltMat = new THREE.MeshStandardMaterial({ map: tex.asphalt, roughness: 0.78, side: THREE.DoubleSide });
     this.bikeMat = new THREE.MeshStandardMaterial({ map: tex.bikeAsphalt, roughness: 0.72, side: THREE.DoubleSide });
     this.pavingMat = new THREE.MeshStandardMaterial({ map: tex.pavingStone, roughness: 0.84, side: THREE.DoubleSide });
-    this.sidewalkMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.85, side: THREE.DoubleSide });
-    this.curbDarkMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+    this.sidewalkMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.86, side: THREE.DoubleSide });
     this.whiteMarkMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc, side: THREE.DoubleSide });
     this.yellowMarkMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide });
-    this.roofTileMat = new THREE.MeshStandardMaterial({ map: tex.roofTile, roughness: 0.68 });
+    this.roofTileMat = new THREE.MeshStandardMaterial({
+      map: tex.roofTile,
+      bumpMap: tex.roofTile,
+      bumpScale: 0.08,
+      roughness: 0.65
+    });
+    this.plasterMat = new THREE.MeshStandardMaterial({
+      map: tex.wallPlaster,
+      roughness: 0.75
+    });
+    this.indMetalMat = new THREE.MeshStandardMaterial({
+      map: tex.industrialMetal,
+      bumpMap: tex.industrialMetal,
+      bumpScale: 0.06,
+      metalness: 0.35,
+      roughness: 0.55
+    });
 
     this.houseWinMat = new THREE.MeshStandardMaterial({
       map: tex.windowHouse,
       emissive: new THREE.Color(0xfef08a),
-      emissiveMap: tex.windowHouse,
+      emissiveMap: tex.windowHouseEmissive,
       emissiveIntensity: 0.0,
-      roughness: 0.25
+      roughness: 0.22
     });
 
     this.towerWinMat = new THREE.MeshStandardMaterial({
       map: tex.windowTower,
       emissive: new THREE.Color(0xfde68a),
-      emissiveMap: tex.windowTower,
+      emissiveMap: tex.windowTowerEmissive,
       emissiveIntensity: 0.0,
-      metalness: 0.5,
-      roughness: 0.2
+      metalness: 0.55,
+      roughness: 0.18
     });
+
+    this.cafeStringLightMat = new THREE.MeshBasicMaterial({ color: 0x475569 });
   }
 
   _initGrid(region = null) {
@@ -78,7 +100,7 @@ class CityRCISystem {
           gx,
           gz,
           type: "empty",
-          oneWayDir: null, // { dx, dz } untuk jalan 1 arah
+          oneWayDir: null,
           hasSidewalkTrees: false,
           zone: null,
           powered: false,
@@ -113,6 +135,9 @@ class CityRCISystem {
     this.clearBlueprint();
     this.buildings = [];
     this.vehicles = [];
+    this.pedestrians = [];
+    this.cafeHangoutSpots = [];
+    this.aviationBeacons = [];
     this.lensMode = null;
     this.demand = { R: 75, C: 45, I: 55 };
     this._initGrid(region);
@@ -171,7 +196,6 @@ class CityRCISystem {
     ].includes(type);
   }
 
-  // --- PENEMPATAN JALAN FLEKSIBEL (LURUS, MELENGKUNG, BUNDARAN ALUN-ALUN) ---
   beginSelection(wx, wz, toolId) {
     const coord = this.worldToGrid(wx, wz);
     if (!coord) return null;
@@ -243,14 +267,12 @@ class CityRCISystem {
 
     if (this.isRoadTool(toolId)) {
       if (this.roadShape === "roundabout") {
-        // Bundaran Alun-Alun Melingkar (Radius otomatis 3..6 petak)
         const dragDist = Math.round(Math.hypot(e.gx - s.gx, e.gz - s.gz));
         const R = Math.max(3, Math.min(6, dragDist || 3));
         for (let gx = s.gx - R - 1; gx <= s.gx + R + 1; gx++) {
           for (let gz = s.gz - R - 1; gz <= s.gz + R + 1; gz++) {
             const d = Math.hypot(gx - s.gx, gz - s.gz);
             if (Math.abs(d - R) <= 0.68) {
-              // Arah putar berlawanan jarum jam (lajur kiri Indonesia)
               const ang = Math.atan2(gz - s.gz, gx - s.gx);
               const tx = Math.round(Math.sin(ang));
               const tz = Math.round(-Math.cos(ang));
@@ -262,7 +284,6 @@ class CityRCISystem {
           }
         }
       } else if (this.roadShape === "curved") {
-        // Jalan Melengkung Mulus (Quadratic Bezier rasterized ke petak)
         const midX = (s.gx + e.gx) * 0.5;
         const midZ = (s.gz + e.gz) * 0.5;
         const dx = e.gx - s.gx;
@@ -289,7 +310,6 @@ class CityRCISystem {
           rawCells.push({ gx: pts[0].gx, gz: pts[0].gz, dir: { dx: 1, dz: 0 }, role: "road" });
         }
       } else {
-        // Tarik Garis Lurus Presisi
         const dx = e.gx - s.gx;
         const dz = e.gz - s.gz;
         if (Math.abs(dx) >= Math.abs(dz)) {
@@ -483,7 +503,7 @@ class CityRCISystem {
             cell.zoneMesh = null;
           }
         }
-        this.gfx.clearVegetationNear(c.wx, c.wz, 2.3);
+        this.gfx.clearVegetationNear(c.wx, c.wz, 2.4);
 
         if (c.role === "plaza" || c.role === "tugu") {
           cell.type = "alun_plaza";
@@ -526,6 +546,11 @@ class CityRCISystem {
   _clearBuilding(cell) {
     if (!cell.building) return;
     if (cell.building.mesh) this.rootGroup.remove(cell.building.mesh);
+    if (cell.building.beacon) {
+      const bIdx = this.aviationBeacons.indexOf(cell.building.beacon);
+      if (bIdx !== -1) this.aviationBeacons.splice(bIdx, 1);
+    }
+    this.cafeHangoutSpots = this.cafeHangoutSpots.filter((s) => s.gx !== cell.gx || s.gz !== cell.gz);
     const idx = this.buildings.indexOf(cell.building);
     if (idx !== -1) this.buildings.splice(idx, 1);
     cell.building = null;
@@ -545,36 +570,51 @@ class CityRCISystem {
       if (c.mesh) this.rootGroup.remove(c.mesh);
       const pos = this.gridToWorld(cx, cz);
       const y = this.gfx.getHeightAt(pos.x, pos.z);
-      c.mesh = this._createTerrainConformingRoadMesh(cx, cz, pos.x, y, pos.z, c);
+      c.mesh = this._createSeamlessRoadMesh(cx, cz, pos.x, y, pos.z, c);
       this.rootGroup.add(c.mesh);
     });
   }
 
-  // Membuat Quad 4-sudut yang menempel rapat ke kontur tanah (Zero Gap / Anti-Renggang)
-  _makeSlopedQuad(x0, z0, x1, z1, yOffset, mat, isBridge) {
-    const h00 = (isBridge ? 0.95 : this.gfx.getHeightAt(x0, z0)) + yOffset;
-    const h10 = (isBridge ? 0.95 : this.gfx.getHeightAt(x1, z0)) + yOffset;
-    const h01 = (isBridge ? 0.95 : this.gfx.getHeightAt(x0, z1)) + yOffset;
-    const h11 = (isBridge ? 0.95 : this.gfx.getHeightAt(x1, z1)) + yOffset;
-
+  // SUBDIVIDED TERRAIN-CONFORMING PATCH (4x4 sub-grid per petak -> 100% menyambung rapat tanpa pernah putus!)
+  _makeSubdividedPatch(x0, z0, x1, z1, yOffset, mat, isBridge, segs = 4) {
     const geo = new THREE.BufferGeometry();
-    const verts = new Float32Array([
-      x0, h00, z0,
-      x1, h10, z0,
-      x0, h01, z1,
-      x1, h11, z1
-    ]);
-    const uvs = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
-    geo.setAttribute("position", new THREE.BufferAttribute(verts, 3));
-    geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-    geo.setIndex([0, 2, 1, 1, 2, 3]);
+    const verts = [];
+    const uvs = [];
+    const indices = [];
+
+    for (let iz = 0; iz <= segs; iz++) {
+      const tz = iz / segs;
+      const wz = z0 + (z1 - z0) * tz;
+      for (let ix = 0; ix <= segs; ix++) {
+        const tx = ix / segs;
+        const wx = x0 + (x1 - x0) * tx;
+        const wy = (isBridge ? 0.95 : this.gfx.getHeightAt(wx, wz)) + yOffset;
+        verts.push(wx, wy, wz);
+        uvs.push(tx, tz);
+      }
+    }
+
+    const rowStride = segs + 1;
+    for (let iz = 0; iz < segs; iz++) {
+      for (let ix = 0; ix < segs; ix++) {
+        const a = iz * rowStride + ix;
+        const b = a + 1;
+        const c = (iz + 1) * rowStride + ix;
+        const d = c + 1;
+        indices.push(a, c, b, b, c, d);
+      }
+    }
+
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
     geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     return mesh;
   }
 
-  _createTerrainConformingRoadMesh(gx, gz, wx, groundY, wz, cell) {
+  _createSeamlessRoadMesh(gx, gz, wx, groundY, wz, cell) {
     const group = new THREE.Group();
     const rType = cell.type;
     const isBridge = groundY < 0.25;
@@ -587,28 +627,25 @@ class CityRCISystem {
     const nRight = this.isRoadType(this.getCell(gx + 1, gz)?.type);
     const connCount = [nUp, nDown, nLeft, nRight].filter(Boolean).length;
 
-    // 1. JALAN TROTOAR / PEDESTRIAN WALK (Full Paving Stone)
     if (rType === "road_pedestrian") {
-      group.add(this._makeSlopedQuad(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.06, this.pavingMat, isBridge));
+      group.add(this._makeSubdividedPatch(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.1, this.pavingMat, isBridge, 4));
       if (cell.hasSidewalkTrees && !isBridge && (gx + gz) % 3 === 0) {
         this._attachSidewalkPlanterTree(group, wx + 1.35, wz + 1.35);
       }
       return group;
     }
 
-    // 2. JALUR KHUSUS SEPEDA (Bike Lane Hijau + Marka Putih)
     if (rType === "road_bike") {
-      group.add(this._makeSlopedQuad(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.05, this.sidewalkMat, isBridge));
+      group.add(this._makeSubdividedPatch(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.09, this.sidewalkMat, isBridge, 4));
       const bw = 0.85;
-      group.add(this._makeSlopedQuad(wx - bw, wz - bw, wx + bw, wz + bw, 0.075, this.bikeMat, isBridge));
-      if (nUp) group.add(this._makeSlopedQuad(wx - bw, wz - halfS, wx + bw, wz - bw, 0.075, this.bikeMat, isBridge));
-      if (nDown) group.add(this._makeSlopedQuad(wx - bw, wz + bw, wx + bw, wz + halfS, 0.075, this.bikeMat, isBridge));
-      if (nLeft) group.add(this._makeSlopedQuad(wx - halfS, wz - bw, wx - bw, wz + bw, 0.075, this.bikeMat, isBridge));
-      if (nRight) group.add(this._makeSlopedQuad(wx + bw, wz - bw, wx + halfS, wz + bw, 0.075, this.bikeMat, isBridge));
+      group.add(this._makeSubdividedPatch(wx - bw, wz - bw, wx + bw, wz + bw, 0.125, this.bikeMat, isBridge, 2));
+      if (nUp) group.add(this._makeSubdividedPatch(wx - bw, wz - halfS, wx + bw, wz - bw, 0.125, this.bikeMat, isBridge, 2));
+      if (nDown) group.add(this._makeSubdividedPatch(wx - bw, wz + bw, wx + bw, wz + halfS, 0.125, this.bikeMat, isBridge, 2));
+      if (nLeft) group.add(this._makeSubdividedPatch(wx - halfS, wz - bw, wx - bw, wz + bw, 0.125, this.bikeMat, isBridge, 2));
+      if (nRight) group.add(this._makeSubdividedPatch(wx + bw, wz - bw, wx + halfS, wz + bw, 0.125, this.bikeMat, isBridge, 2));
       return group;
     }
 
-    // 3. JALAN BERASPAL (4 Lajur, 2 Lajur, 1 Arah 1 Jalur, 1 Arah 2 Jalur)
     const widthMap = {
       road_4lane: 3.3,
       road_1way_2: 2.8,
@@ -618,40 +655,37 @@ class CityRCISystem {
     const roadW = widthMap[rType] || 2.3;
     const hw = roadW / 2;
 
-    // Dasar Trotoar Beton di seluruh petak yang menempel rapat ke kontur tanah
-    group.add(this._makeSlopedQuad(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.05, this.sidewalkMat, isBridge));
+    // Dasar Trotoar Beton Subdivided (4x4 segmen)
+    group.add(this._makeSubdividedPatch(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.09, this.sidewalkMat, isBridge, 4));
 
-    // Inti Aspal Tengah
-    group.add(this._makeSlopedQuad(wx - hw, wz - hw, wx + hw, wz + hw, 0.08, this.asphaltMat, isBridge));
+    // Inti Aspal Tengah Subdivided
+    group.add(this._makeSubdividedPatch(wx - hw, wz - hw, wx + hw, wz + hw, 0.13, this.asphaltMat, isBridge, 2));
 
-    // Lengan Penyambung ke 4 Arah
     if (nUp) {
-      group.add(this._makeSlopedQuad(wx - hw, wz - halfS, wx + hw, wz - hw, 0.08, this.asphaltMat, isBridge));
+      group.add(this._makeSubdividedPatch(wx - hw, wz - halfS, wx + hw, wz - hw, 0.13, this.asphaltMat, isBridge, 2));
       this._addLaneMarkings(group, wx, wz - halfS * 0.55, true, rType, cell.oneWayDir, isBridge);
     }
     if (nDown) {
-      group.add(this._makeSlopedQuad(wx - hw, wz + hw, wx + hw, wz + halfS, 0.08, this.asphaltMat, isBridge));
+      group.add(this._makeSubdividedPatch(wx - hw, wz + hw, wx + hw, wz + halfS, 0.13, this.asphaltMat, isBridge, 2));
       this._addLaneMarkings(group, wx, wz + halfS * 0.55, true, rType, cell.oneWayDir, isBridge);
     }
     if (nLeft) {
-      group.add(this._makeSlopedQuad(wx - halfS, wz - hw, wx - hw, wz + hw, 0.08, this.asphaltMat, isBridge));
+      group.add(this._makeSubdividedPatch(wx - halfS, wz - hw, wx - hw, wz + hw, 0.13, this.asphaltMat, isBridge, 2));
       this._addLaneMarkings(group, wx - halfS * 0.55, wz, false, rType, cell.oneWayDir, isBridge);
     }
     if (nRight) {
-      group.add(this._makeSlopedQuad(wx + hw, wz - hw, wx + halfS, wz + hw, 0.08, this.asphaltMat, isBridge));
+      group.add(this._makeSubdividedPatch(wx + hw, wz - hw, wx + halfS, wz + hw, 0.13, this.asphaltMat, isBridge, 2));
       this._addLaneMarkings(group, wx + halfS * 0.55, wz, false, rType, cell.oneWayDir, isBridge);
     }
 
-    // Zebra Cross Otomatis di Persimpangan
     if (connCount >= 3 && nDown) {
       for (let sx = -hw * 0.72; sx <= hw * 0.72; sx += 0.38) {
         group.add(
-          this._makeSlopedQuad(wx + sx - 0.08, wz + hw + 0.05, wx + sx + 0.08, wz + hw + 0.48, 0.092, this.whiteMarkMat, isBridge)
+          this._makeSubdividedPatch(wx + sx - 0.08, wz + hw + 0.05, wx + sx + 0.08, wz + hw + 0.48, 0.145, this.whiteMarkMat, isBridge, 1)
         );
       }
     }
 
-    // Pohon Trotoar Rapi & Renggang (setiap 3 petak di sudut luar yang tidak terhubung jalan)
     if (cell.hasSidewalkTrees && !isBridge && connCount <= 2 && (gx + gz) % 3 === 0) {
       const cornerX = !nRight ? wx + halfS - 0.28 : wx - halfS + 0.28;
       const cornerZ = !nDown ? wz + halfS - 0.28 : wz - halfS + 0.28;
@@ -660,7 +694,6 @@ class CityRCISystem {
       }
     }
 
-    // Pilar Jembatan Beton jika melintasi sungai/laut
     if (isBridge) {
       const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.4, 3.8, 10), this.sidewalkMat);
       pillar.position.set(wx, -0.95, wz);
@@ -672,27 +705,25 @@ class CityRCISystem {
 
   _addLaneMarkings(group, mx, mz, isVertical, rType, oneWayDir, isBridge) {
     if (rType === "road_4lane") {
-      // Median Kuning Ganda + Garis Lajur Putih
       if (isVertical) {
-        group.add(this._makeSlopedQuad(mx - 0.16, mz - 0.55, mx - 0.05, mz + 0.55, 0.092, this.yellowMarkMat, isBridge));
-        group.add(this._makeSlopedQuad(mx + 0.05, mz - 0.55, mx + 0.16, mz + 0.55, 0.092, this.yellowMarkMat, isBridge));
-        group.add(this._makeSlopedQuad(mx - 0.85, mz - 0.35, mx - 0.77, mz + 0.35, 0.092, this.whiteMarkMat, isBridge));
-        group.add(this._makeSlopedQuad(mx + 0.77, mz - 0.35, mx + 0.85, mz + 0.35, 0.092, this.whiteMarkMat, isBridge));
+        group.add(this._makeSubdividedPatch(mx - 0.16, mz - 0.55, mx - 0.05, mz + 0.55, 0.145, this.yellowMarkMat, isBridge, 1));
+        group.add(this._makeSubdividedPatch(mx + 0.05, mz - 0.55, mx + 0.16, mz + 0.55, 0.145, this.yellowMarkMat, isBridge, 1));
+        group.add(this._makeSubdividedPatch(mx - 0.85, mz - 0.35, mx - 0.77, mz + 0.35, 0.145, this.whiteMarkMat, isBridge, 1));
+        group.add(this._makeSubdividedPatch(mx + 0.77, mz - 0.35, mx + 0.85, mz + 0.35, 0.145, this.whiteMarkMat, isBridge, 1));
       } else {
-        group.add(this._makeSlopedQuad(mx - 0.55, mz - 0.16, mx + 0.55, mz - 0.05, 0.092, this.yellowMarkMat, isBridge));
-        group.add(this._makeSlopedQuad(mx - 0.55, mz + 0.05, mx + 0.55, mz + 0.16, 0.092, this.yellowMarkMat, isBridge));
-        group.add(this._makeSlopedQuad(mx - 0.35, mz - 0.85, mx + 0.35, mz - 0.77, 0.092, this.whiteMarkMat, isBridge));
-        group.add(this._makeSlopedQuad(mx - 0.35, mz + 0.77, mx + 0.35, mz + 0.85, 0.092, this.whiteMarkMat, isBridge));
+        group.add(this._makeSubdividedPatch(mx - 0.55, mz - 0.16, mx + 0.55, mz - 0.05, 0.145, this.yellowMarkMat, isBridge, 1));
+        group.add(this._makeSubdividedPatch(mx - 0.55, mz + 0.05, mx + 0.55, mz + 0.16, 0.145, this.yellowMarkMat, isBridge, 1));
+        group.add(this._makeSubdividedPatch(mx - 0.35, mz - 0.85, mx + 0.35, mz - 0.77, 0.145, this.whiteMarkMat, isBridge, 1));
+        group.add(this._makeSubdividedPatch(mx - 0.35, mz + 0.77, mx + 0.35, mz + 0.85, 0.145, this.whiteMarkMat, isBridge, 1));
       }
     } else if (rType === "road_2lane") {
       if (isVertical) {
-        group.add(this._makeSlopedQuad(mx - 0.06, mz - 0.45, mx + 0.06, mz + 0.45, 0.092, this.whiteMarkMat, isBridge));
+        group.add(this._makeSubdividedPatch(mx - 0.06, mz - 0.45, mx + 0.06, mz + 0.45, 0.145, this.whiteMarkMat, isBridge, 1));
       } else {
-        group.add(this._makeSlopedQuad(mx - 0.45, mz - 0.06, mx + 0.45, mz + 0.06, 0.092, this.whiteMarkMat, isBridge));
+        group.add(this._makeSubdividedPatch(mx - 0.45, mz - 0.06, mx + 0.45, mz + 0.06, 0.145, this.whiteMarkMat, isBridge, 1));
       }
     } else if (rType === "road_1way_1" || rType === "road_1way_2") {
-      // Marka Panah Petunjuk Arah Putih pada Jalan 1 Arah
-      const py = (isBridge ? 0.95 : this.gfx.getHeightAt(mx, mz)) + 0.096;
+      const py = (isBridge ? 0.95 : this.gfx.getHeightAt(mx, mz)) + 0.15;
       const arrowGroup = new THREE.Group();
       const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.55), this.whiteMarkMat);
       const headL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.28), this.whiteMarkMat);
@@ -704,8 +735,7 @@ class CityRCISystem {
       arrowGroup.add(shaft, headL, headR);
 
       if (oneWayDir) {
-        const angle = Math.atan2(-oneWayDir.dx, -oneWayDir.dz);
-        arrowGroup.rotation.y = angle;
+        arrowGroup.rotation.y = Math.atan2(-oneWayDir.dx, -oneWayDir.dz);
       }
 
       if (rType === "road_1way_2") {
@@ -728,33 +758,29 @@ class CityRCISystem {
 
   _attachSidewalkPlanterTree(group, tx, tz) {
     const gy = this.gfx.getHeightAt(tx, tz);
-    // Bak tanaman beton kotak kecil di trotoar
     const planter = new THREE.Mesh(
       new THREE.BoxGeometry(0.56, 0.2, 0.56),
       new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.85 })
     );
-    planter.position.set(tx, gy + 0.12, tz);
+    planter.position.set(tx, gy + 0.14, tz);
     group.add(planter);
-
-    // Pohon peneduh skala trotoar rapi (tidak terlalu besar/padat)
-    this.gfx.addTreeAt(tx, gy + 0.14, tz, 0.58);
+    this.gfx.addTreeAt(tx, gy + 0.16, tz, 0.62);
   }
 
   _createAlunPlazaMesh(wx, groundY, wz, hasTugu) {
     const group = new THREE.Group();
     const s = this.cellSize;
     const halfS = s / 2;
-    group.add(this._makeSlopedQuad(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.06, this.pavingMat, false));
+    group.add(this._makeSubdividedPatch(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.09, this.pavingMat, false, 3));
 
     const grassPatch = new THREE.Mesh(
-      new THREE.BoxGeometry(s * 0.78, 0.14, s * 0.78),
+      new THREE.BoxGeometry(s * 0.78, 0.16, s * 0.78),
       new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.85 })
     );
-    grassPatch.position.set(wx, groundY + 0.1, wz);
+    grassPatch.position.set(wx, groundY + 0.12, wz);
     group.add(grassPatch);
 
     if (hasTugu) {
-      // Tugu Monumen Bundaran Alun-Alun
       const base = new THREE.Mesh(
         new THREE.CylinderGeometry(1.3, 1.5, 0.5, 16),
         new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 })
@@ -775,7 +801,7 @@ class CityRCISystem {
       lotus.position.set(wx, groundY + 4.95, wz);
       group.add(base, obelisk, lotus);
     } else if (Math.random() > 0.45) {
-      this.gfx.addTreeAt(wx, groundY + 0.14, wz, 0.68);
+      this.gfx.addTreeAt(wx, groundY + 0.16, wz, 0.72);
     }
     return group;
   }
@@ -783,36 +809,36 @@ class CityRCISystem {
   _createPLNMesh(wx, groundY, wz, rotation = 0) {
     const group = new THREE.Group();
     const pad = new THREE.Mesh(
-      new THREE.BoxGeometry(3.6, 0.22, 3.6),
+      new THREE.BoxGeometry(3.7, 0.45, 3.7),
       new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.8 })
     );
-    pad.position.y = 0.11;
+    pad.position.y = -0.05;
 
     const hall = new THREE.Mesh(
-      new THREE.BoxGeometry(2.0, 1.65, 2.5),
-      new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.45 })
+      new THREE.BoxGeometry(2.0, 1.75, 2.5),
+      this.plasterMat
     );
-    hall.position.set(-0.45, 1.02, 0);
+    hall.position.set(-0.45, 1.05, 0);
     hall.castShadow = true;
 
     const stripe = new THREE.Mesh(
-      new THREE.BoxGeometry(2.05, 0.3, 2.55),
+      new THREE.BoxGeometry(2.06, 0.3, 2.56),
       new THREE.MeshStandardMaterial({ color: 0x0284c7 })
     );
-    stripe.position.set(-0.45, 1.45, 0);
+    stripe.position.set(-0.45, 1.55, 0);
 
     const tower = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.35, 0.54, 3.4, 12),
+      new THREE.CylinderGeometry(0.35, 0.54, 3.6, 12),
       new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.45, roughness: 0.35 })
     );
-    tower.position.set(1.0, 1.8, -0.45);
+    tower.position.set(1.0, 1.9, -0.45);
     tower.castShadow = true;
 
     const beacon = new THREE.Mesh(
-      new THREE.SphereGeometry(0.18, 8, 8),
+      new THREE.SphereGeometry(0.2, 8, 8),
       new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
     );
-    beacon.position.set(1.0, 3.6, -0.45);
+    beacon.position.set(1.0, 3.8, -0.45);
 
     group.add(pad, hall, stripe, tower, beacon);
     group.position.set(wx, groundY, wz);
@@ -823,34 +849,34 @@ class CityRCISystem {
   _createPDAMMesh(wx, groundY, wz, rotation = 0) {
     const group = new THREE.Group();
     const pad = new THREE.Mesh(
-      new THREE.BoxGeometry(3.6, 0.22, 3.6),
+      new THREE.BoxGeometry(3.7, 0.45, 3.7),
       new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.8 })
     );
-    pad.position.y = 0.11;
+    pad.position.y = -0.05;
 
     const basin = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.12, 1.12, 0.72, 16),
-      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 })
+      new THREE.CylinderGeometry(1.12, 1.12, 0.76, 16),
+      this.plasterMat
     );
     basin.position.set(-0.55, 0.55, 0.4);
 
     const waterDisk = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.0, 1.0, 0.75, 16),
+      new THREE.CylinderGeometry(1.0, 1.0, 0.79, 16),
       new THREE.MeshStandardMaterial({ color: 0x0ea5e9, roughness: 0.2 })
     );
     waterDisk.position.set(-0.55, 0.56, 0.4);
 
     const leg = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.24, 0.36, 2.5, 10),
+      new THREE.CylinderGeometry(0.24, 0.36, 2.6, 10),
       new THREE.MeshStandardMaterial({ color: 0xcbd5e1 })
     );
-    leg.position.set(0.88, 1.35, -0.6);
+    leg.position.set(0.88, 1.4, -0.6);
 
     const tank = new THREE.Mesh(
       new THREE.CylinderGeometry(0.78, 0.72, 1.15, 14),
       new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35 })
     );
-    tank.position.set(0.88, 2.85, -0.6);
+    tank.position.set(0.88, 2.9, -0.6);
     tank.castShadow = true;
 
     group.add(pad, basin, waterDisk, leg, tank);
@@ -865,12 +891,12 @@ class CityRCISystem {
     const mat = new THREE.MeshBasicMaterial({
       color: colorMap[cell.zone],
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.38,
       depthWrite: false,
       side: THREE.DoubleSide
     });
     const halfS = this.cellSize * 0.46;
-    const mesh = this._makeSlopedQuad(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.08, mat, false);
+    const mesh = this._makeSubdividedPatch(wx - halfS, wz - halfS, wx + halfS, wz + halfS, 0.1, mat, false, 2);
     cell.zoneMesh = mesh;
     this.rootGroup.add(mesh);
   }
@@ -903,7 +929,7 @@ class CityRCISystem {
           depthWrite: false
         });
         const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(pos.x, y + 0.16, pos.z);
+        mesh.position.set(pos.x, y + 0.18, pos.z);
         cell.lensMesh = mesh;
         this.rootGroup.add(mesh);
       }
@@ -959,6 +985,8 @@ class CityRCISystem {
     let rBuildings = 0;
     let cBuildings = 0;
     let iBuildings = 0;
+    let completedResPop = 0;
+    let cafeCount = 0;
     let unpoweredCount = 0;
     let unwateredCount = 0;
 
@@ -967,9 +995,17 @@ class CityRCISystem {
         const c = this.grid[gx][gz];
         if (this.isRoadTool(c.type)) roads++;
         if (c.building) {
-          if (c.building.zone === "R") rBuildings += c.building.level;
-          if (c.building.zone === "C") cBuildings += c.building.level;
-          if (c.building.zone === "I") iBuildings += c.building.level;
+          if (c.building.stage === "built") {
+            if (c.building.zone === "R") {
+              rBuildings += c.building.level;
+              completedResPop += c.building.level === 1 ? 45 : c.building.level === 2 ? 150 : 580;
+            }
+            if (c.building.zone === "C") {
+              cBuildings += c.building.level;
+              if (c.building.isCafe) cafeCount++;
+            }
+            if (c.building.zone === "I") iBuildings += c.building.level;
+          }
           if (!c.powered) unpoweredCount++;
           if (!c.watered) unwateredCount++;
         }
@@ -983,6 +1019,8 @@ class CityRCISystem {
       rBuildings,
       cBuildings,
       iBuildings,
+      completedResPop,
+      cafeCount,
       unpoweredCount,
       unwateredCount
     };
@@ -1000,199 +1038,463 @@ class CityRCISystem {
     }
   }
 
-  _hasConnectedRoadAdjacent(gx, gz) {
-    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-    return dirs.some(([dx, dz]) => {
+  _getRoadFacingYaw(gx, gz) {
+    const checks = [
+      [0, 1, 0],
+      [0, -1, Math.PI],
+      [1, 0, Math.PI / 2],
+      [-1, 0, -Math.PI / 2]
+    ];
+    for (const [dx, dz, yaw] of checks) {
       const c = this.getCell(gx + dx, gz + dz);
-      return c && this.isRoadType(c.type) && c.connectedToGate;
-    });
+      if (c && this.isRoadType(c.type) && c.connectedToGate) {
+        return yaw;
+      }
+    }
+    return null;
   }
 
-  _createBuildingMesh(zone, level, stage, wx, groundY, wz) {
+  // BANGUNAN ARSITEKTUR DETAIL BERTEKSTUR + KAFE NONGKRONG OUTDOOR
+  _createBuildingMesh(gx, gz, zone, level, stage, wx, groundY, wz, facingYaw, metaOut) {
     const group = new THREE.Group();
 
+    // Pondasi kavling agar tidak pernah mengambang di tanah miring
+    const plinth = new THREE.Mesh(
+      new THREE.BoxGeometry(3.6, 0.55, 3.6),
+      new THREE.MeshStandardMaterial({ color: zone === "R" ? 0x65a30d : 0x94a3b8, roughness: 0.85 })
+    );
+    plinth.position.y = -0.15;
+    plinth.receiveShadow = true;
+    group.add(plinth);
+
     if (stage === "construction") {
-      const fence = new THREE.Mesh(
-        new THREE.BoxGeometry(2.9, 0.5, 2.9),
-        new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.7 })
+      const soilPad = new THREE.Mesh(
+        new THREE.BoxGeometry(3.1, 0.2, 3.1),
+        new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.9 })
       );
-      fence.position.set(wx, groundY + 0.25, wz);
+      soilPad.position.y = 0.16;
 
       const scaffold = new THREE.Mesh(
-        new THREE.BoxGeometry(2.0, 1.6, 2.0),
-        new THREE.MeshStandardMaterial({ color: 0x94a3b8, wireframe: true })
+        new THREE.BoxGeometry(2.2, 1.5, 2.2),
+        new THREE.MeshStandardMaterial({ color: 0xf59e0b, wireframe: true })
       );
-      scaffold.position.set(wx, groundY + 0.9, wz);
-      group.add(fence, scaffold);
+      scaffold.position.y = 0.95;
+      group.add(soilPad, scaffold);
+      group.position.set(wx, groundY, wz);
+      group.rotation.y = facingYaw;
       return group;
     }
 
     if (zone === "R") {
       if (level === 1) {
-        const wallColors = [0xfef3c7, 0xf1f5f9, 0xe0f2fe];
-        const body = new THREE.Mesh(
-          new THREE.BoxGeometry(2.3, 1.35, 2.1),
-          new THREE.MeshStandardMaterial({ color: wallColors[Math.floor(Math.random() * 3)], roughness: 0.7 })
-        );
-        body.position.set(wx, groundY + 0.68, wz);
-        body.castShadow = true;
+        // RUMAH TAPAK TROPIS REALISTIS (Pagar depan, teras pilar, dinding plester, genteng, carport & toren)
+        const wallTones = [0xfef3c7, 0xf8fafc, 0xfde68a, 0xe0f2fe];
+        const wallMat = new THREE.MeshStandardMaterial({
+          map: this.gfx.textures.wallPlaster,
+          color: wallTones[(gx + gz) % wallTones.length],
+          roughness: 0.72
+        });
 
-        const roof = new THREE.Mesh(new THREE.ConeGeometry(1.9, 1.05, 4), this.roofTileMat);
+        // Pagar rendah & pilar gerbang depan
+        const fenceMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
+        const fenceL = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.42, 0.12), fenceMat);
+        fenceL.position.set(-1.1, 0.32, 1.65);
+        const fenceR = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.42, 0.12), fenceMat);
+        fenceR.position.set(1.1, 0.32, 1.65);
+        group.add(fenceL, fenceR);
+
+        // Badan rumah utama
+        const body = new THREE.Mesh(new THREE.BoxGeometry(2.45, 1.45, 2.05), wallMat);
+        body.position.set(-0.15, 0.85, -0.15);
+        body.castShadow = true;
+        body.receiveShadow = true;
+
+        // Kusen jendela & pintu masuk kayu
+        const winPanel = new THREE.Mesh(new THREE.BoxGeometry(2.49, 0.68, 2.09), this.houseWinMat);
+        winPanel.position.set(-0.15, 0.88, -0.15);
+        const door = new THREE.Mesh(
+          new THREE.BoxGeometry(0.45, 0.95, 0.08),
+          new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 })
+        );
+        door.position.set(-0.2, 0.6, 0.89);
+
+        // Teras depan & 2 tiang penyangga
+        const porchRoof = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.14, 0.75), this.roofTileMat);
+        porchRoof.position.set(-0.2, 1.45, 1.15);
+        [-0.85, 0.45].forEach((px) => {
+          const col = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.3, 8), wallMat);
+          col.position.set(px, 0.78, 1.42);
+          group.add(col);
+        });
+
+        // Kanopi Carport samping
+        const carport = new THREE.Mesh(
+          new THREE.BoxGeometry(0.95, 0.08, 1.85),
+          new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 })
+        );
+        carport.position.set(1.22, 1.32, 0.15);
+
+        // Atap Genteng Limas + Listplank
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(2.05, 1.05, 4), this.roofTileMat);
         roof.rotation.y = Math.PI / 4;
-        roof.position.set(wx, groundY + 1.88, wz);
+        roof.position.set(-0.15, 2.08, -0.15);
         roof.castShadow = true;
 
-        const win = new THREE.Mesh(new THREE.BoxGeometry(2.34, 0.65, 2.14), this.houseWinMat);
-        win.position.set(wx, groundY + 0.72, wz);
-
+        // Toren air atap belakang
         const toren = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.18, 0.18, 0.36, 8),
-          new THREE.MeshStandardMaterial({ color: Math.random() > 0.5 ? 0x0284c7 : 0xea580c })
+          new THREE.CylinderGeometry(0.2, 0.2, 0.42, 10),
+          new THREE.MeshStandardMaterial({ color: (gx * gz) % 2 === 0 ? 0x0284c7 : 0xea580c })
         );
-        toren.position.set(wx + 0.85, groundY + 1.52, wz - 0.75);
+        toren.position.set(0.85, 1.75, -0.85);
 
-        group.add(body, roof, win, toren);
+        group.add(body, winPanel, door, porchRoof, carport, roof, toren);
       } else if (level === 2) {
-        const body = new THREE.Mesh(
-          new THREE.BoxGeometry(2.6, 2.5, 2.4),
-          new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.45 })
-        );
-        body.position.set(wx, groundY + 1.25, wz);
+        // RUMAH CLUSTER MODERN 2 LANTAI + BALKON KACA
+        const body = new THREE.Mesh(new THREE.BoxGeometry(2.7, 2.65, 2.4), this.plasterMat);
+        body.position.set(0, 1.45, -0.1);
         body.castShadow = true;
 
-        const facade = new THREE.Mesh(
-          new THREE.BoxGeometry(1.0, 2.55, 2.46),
-          new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 })
+        const stoneWall = new THREE.Mesh(
+          new THREE.BoxGeometry(0.95, 2.7, 2.48),
+          new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.75 })
         );
-        facade.position.set(wx - 0.65, groundY + 1.27, wz);
+        stoneWall.position.set(-0.75, 1.47, -0.1);
 
-        const win = new THREE.Mesh(new THREE.BoxGeometry(2.64, 1.75, 2.44), this.houseWinMat);
-        win.position.set(wx, groundY + 1.28, wz);
+        const win = new THREE.Mesh(new THREE.BoxGeometry(2.74, 1.85, 2.44), this.houseWinMat);
+        win.position.set(0, 1.48, -0.1);
+
+        const balcony = new THREE.Mesh(
+          new THREE.BoxGeometry(1.55, 0.42, 0.62),
+          new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 })
+        );
+        balcony.position.set(0.45, 1.65, 1.25);
 
         const roof = new THREE.Mesh(
-          new THREE.BoxGeometry(2.8, 0.24, 2.6),
+          new THREE.BoxGeometry(2.95, 0.24, 2.75),
           new THREE.MeshStandardMaterial({ color: 0x1e293b })
         );
-        roof.position.set(wx, groundY + 2.6, wz);
-
-        group.add(body, facade, win, roof);
+        roof.position.set(0, 2.88, -0.05);
+        group.add(body, stoneWall, win, balcony, roof);
       } else {
-        const height = 6.2 + Math.random() * 2.2;
-        const tower = new THREE.Mesh(
-          new THREE.BoxGeometry(2.7, height, 2.7),
-          new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4 })
+        // APARTEMEN & KONDOMINIUM BERTINGKAT
+        const floors = 7.0 + ((gx + gz) % 4) * 1.1;
+        const podium = new THREE.Mesh(
+          new THREE.BoxGeometry(3.15, 1.4, 3.15),
+          new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 })
         );
-        tower.position.set(wx, groundY + height / 2, wz);
+        podium.position.y = 0.8;
+
+        const tower = new THREE.Mesh(new THREE.BoxGeometry(2.65, floors, 2.65), this.plasterMat);
+        tower.position.y = 1.4 + floors / 2;
         tower.castShadow = true;
 
-        const win = new THREE.Mesh(new THREE.BoxGeometry(2.74, height * 0.86, 2.74), this.towerWinMat);
-        win.position.set(wx, groundY + height * 0.5, wz);
+        const win = new THREE.Mesh(new THREE.BoxGeometry(2.69, floors * 0.9, 2.69), this.towerWinMat);
+        win.position.y = 1.4 + floors / 2;
 
         const crown = new THREE.Mesh(
           new THREE.BoxGeometry(2.85, 0.35, 2.85),
           new THREE.MeshStandardMaterial({ color: 0x0284c7 })
         );
-        crown.position.set(wx, groundY + height + 0.15, wz);
-
-        group.add(tower, win, crown);
+        crown.position.y = 1.4 + floors + 0.15;
+        group.add(podium, tower, win, crown);
       }
     } else if (zone === "C") {
       if (level === 1) {
-        const awningCols = [0x0284c7, 0xdc2626, 0x16a34a, 0xd97706];
-        const pick = Math.floor(Math.random() * awningCols.length);
+        const isCafe = (gx * 7 + gz * 13) % 10 < 6; // ~60% jadi Kafe Nongkrong Outdoor!
+        if (isCafe) {
+          metaOut.isCafe = true;
+          // KAFE NONGKRONG OUTDOOR (Bangunan kayu-kaca, meja kursi teras, payung taman & lampu gantung)
+          const cafeDeck = new THREE.Mesh(
+            new THREE.BoxGeometry(3.45, 0.14, 3.45),
+            new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 })
+          );
+          cafeDeck.position.y = 0.16;
 
-        const body = new THREE.Mesh(
-          new THREE.BoxGeometry(2.6, 1.85, 2.4),
-          new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.55 })
-        );
-        body.position.set(wx, groundY + 0.92, wz);
-        body.castShadow = true;
+          const cafeCabin = new THREE.Mesh(
+            new THREE.BoxGeometry(2.85, 1.75, 1.45),
+            new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.65 })
+          );
+          cafeCabin.position.set(0, 1.05, -0.85);
+          cafeCabin.castShadow = true;
 
-        const win = new THREE.Mesh(new THREE.BoxGeometry(2.64, 0.95, 2.44), this.houseWinMat);
-        win.position.set(wx, groundY + 0.85, wz);
+          const glassFront = new THREE.Mesh(new THREE.BoxGeometry(2.88, 1.25, 1.48), this.houseWinMat);
+          glassFront.position.set(0, 0.95, -0.85);
 
-        const awning = new THREE.Mesh(
-          new THREE.BoxGeometry(2.78, 0.24, 0.72),
-          new THREE.MeshStandardMaterial({ color: awningCols[pick] })
-        );
-        awning.position.set(wx, groundY + 1.15, wz + 1.32);
+          const signBoard = new THREE.Mesh(
+            new THREE.BoxGeometry(1.65, 0.36, 0.12),
+            new THREE.MeshStandardMaterial({
+              color: 0xf59e0b,
+              emissive: new THREE.Color(0xfbbf24),
+              emissiveIntensity: 0.75
+            })
+          );
+          signBoard.position.set(0, 2.08, -0.15);
 
-        group.add(body, win, awning);
+          // 3 Set Meja & Kursi Nongkrong + Payung Taman
+          const umbrellaCols = [0xdc2626, 0x0284c7, 0x16a34a];
+          [-0.95, 0.0, 0.95].forEach((tx, idx) => {
+            const table = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.28, 0.28, 0.05, 10),
+              new THREE.MeshStandardMaterial({ color: 0xfef3c7 })
+            );
+            table.position.set(tx, 0.56, 0.68);
+            const leg = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.04, 0.04, 0.36, 6),
+              new THREE.MeshStandardMaterial({ color: 0x1e293b })
+            );
+            leg.position.set(tx, 0.38, 0.68);
+            group.add(table, leg);
+
+            if (idx !== 1) {
+              const pole = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.03, 0.03, 1.45, 6),
+                new THREE.MeshStandardMaterial({ color: 0xf8fafc })
+              );
+              pole.position.set(tx, 0.92, 0.68);
+              const umbrella = new THREE.Mesh(
+                new THREE.ConeGeometry(0.58, 0.28, 8),
+                new THREE.MeshStandardMaterial({ color: umbrellaCols[(gx + idx) % 3] })
+              );
+              umbrella.position.set(tx, 1.65, 0.68);
+              group.add(pole, umbrella);
+            }
+          });
+
+          // Lampu gantung kafe hangat (warm string lights)
+          [-1.1, -0.4, 0.4, 1.1].forEach((lx) => {
+            const bulb = new THREE.Mesh(
+              new THREE.SphereGeometry(0.09, 6, 6),
+              new THREE.MeshBasicMaterial({ color: 0xfef08a })
+            );
+            bulb.position.set(lx, 1.85, 0.45);
+            group.add(bulb);
+          });
+
+          group.add(cafeDeck, cafeCabin, glassFront, signBoard);
+        } else {
+          // RUKO LOKAL 2 LANTAI BERKANOPI
+          const awningCols = [0x0284c7, 0xdc2626, 0x16a34a, 0xd97706];
+          const body = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.2, 2.45), this.plasterMat);
+          body.position.set(0, 1.2, -0.15);
+          body.castShadow = true;
+
+          const win = new THREE.Mesh(new THREE.BoxGeometry(2.84, 1.45, 2.49), this.houseWinMat);
+          win.position.set(0, 1.15, -0.15);
+
+          const awning = new THREE.Mesh(
+            new THREE.BoxGeometry(2.92, 0.24, 0.72),
+            new THREE.MeshStandardMaterial({ color: awningCols[(gx + gz) % awningCols.length] })
+          );
+          awning.position.set(0, 1.25, 1.25);
+          group.add(body, win, awning);
+        }
       } else if (level === 2) {
+        // MALL & HOTEL MENENGAH
         const body = new THREE.Mesh(
-          new THREE.BoxGeometry(2.85, 3.6, 2.65),
-          new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.45 })
+          new THREE.BoxGeometry(3.0, 4.4, 2.8),
+          new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.42 })
         );
-        body.position.set(wx, groundY + 1.8, wz);
+        body.position.y = 2.3;
         body.castShadow = true;
 
-        const win = new THREE.Mesh(new THREE.BoxGeometry(2.89, 2.5, 2.69), this.houseWinMat);
-        win.position.set(wx, groundY + 1.65, wz);
+        const win = new THREE.Mesh(new THREE.BoxGeometry(3.04, 3.3, 2.84), this.towerWinMat);
+        win.position.y = 2.2;
 
-        const banner = new THREE.Mesh(
-          new THREE.BoxGeometry(2.92, 0.52, 2.72),
-          new THREE.MeshStandardMaterial({ color: 0x2563eb })
+        const neonBand = new THREE.Mesh(
+          new THREE.BoxGeometry(3.08, 0.48, 2.88),
+          new THREE.MeshStandardMaterial({
+            color: 0x0284c7,
+            emissive: new THREE.Color(0x38bdf8),
+            emissiveIntensity: 0.65
+          })
         );
-        banner.position.set(wx, groundY + 3.25, wz);
-
-        group.add(body, win, banner);
+        neonBand.position.y = 4.15;
+        group.add(body, win, neonBand);
       } else {
-        const height = 8.5 + Math.random() * 4.5;
-        const body = new THREE.Mesh(new THREE.BoxGeometry(2.95, height, 2.95), this.towerWinMat);
-        body.position.set(wx, groundY + height / 2, wz);
-        body.castShadow = true;
+        // PENCAKAR LANGIT SCBD BERUNDANG + LAMPU MERCUSUAR
+        const height = 10.5 + ((gx * 3 + gz * 5) % 6) * 1.4;
+        const podium = new THREE.Mesh(
+          new THREE.BoxGeometry(3.25, 1.8, 3.25),
+          new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4 })
+        );
+        podium.position.y = 1.0;
+
+        const tower = new THREE.Mesh(new THREE.BoxGeometry(2.75, height, 2.75), this.towerWinMat);
+        tower.position.y = 1.8 + height / 2;
+        tower.castShadow = true;
+
+        const crown = new THREE.Mesh(
+          new THREE.BoxGeometry(2.2, 1.1, 2.2),
+          new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.25 })
+        );
+        crown.position.y = 1.8 + height + 0.55;
 
         const spire = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.06, 0.14, 2.2, 6),
-          new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7 })
+          new THREE.CylinderGeometry(0.05, 0.12, 2.4, 6),
+          new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8 })
         );
-        spire.position.set(wx, groundY + height + 1.1, wz);
+        spire.position.y = 1.8 + height + 2.2;
 
-        group.add(body, spire);
+        const beacon = new THREE.Mesh(
+          new THREE.SphereGeometry(0.14, 6, 6),
+          new THREE.MeshBasicMaterial({ color: 0xef4444 })
+        );
+        beacon.position.y = 1.8 + height + 3.45;
+        this.aviationBeacons.push(beacon);
+        metaOut.beacon = beacon;
+
+        group.add(podium, tower, crown, spire, beacon);
       }
     } else if (zone === "I") {
       if (level === 1) {
-        const body = new THREE.Mesh(
-          new THREE.BoxGeometry(2.85, 1.55, 2.6),
-          new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.72 })
-        );
-        body.position.set(wx, groundY + 0.78, wz);
+        const body = new THREE.Mesh(new THREE.BoxGeometry(3.0, 1.75, 2.75), this.indMetalMat);
+        body.position.y = 0.98;
         body.castShadow = true;
 
         const roof = new THREE.Mesh(
-          new THREE.BoxGeometry(3.0, 0.22, 2.75),
+          new THREE.BoxGeometry(3.15, 0.22, 2.9),
           new THREE.MeshStandardMaterial({ color: 0xd97706 })
         );
-        roof.position.set(wx, groundY + 1.64, wz);
+        roof.position.y = 1.94;
         group.add(body, roof);
       } else {
-        const h = level === 2 ? 2.4 : 3.6;
-        const body = new THREE.Mesh(
-          new THREE.BoxGeometry(3.0, h, 2.85),
-          new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.65 })
-        );
-        body.position.set(wx, groundY + h / 2, wz);
+        const h = level === 2 ? 2.6 : 3.8;
+        const body = new THREE.Mesh(new THREE.BoxGeometry(3.1, h, 2.95), this.indMetalMat);
+        body.position.y = 0.1 + h / 2;
         body.castShadow = true;
 
         const stack = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.24, 0.34, h + 2.2, 10),
+          new THREE.CylinderGeometry(0.24, 0.34, h + 2.4, 10),
           new THREE.MeshStandardMaterial({ color: 0x334155 })
         );
-        stack.position.set(wx + 0.95, groundY + (h + 2.2) / 2, wz - 0.85);
+        stack.position.set(1.0, (h + 2.4) / 2, -0.9);
         stack.castShadow = true;
         group.add(body, stack);
       }
     }
 
+    group.position.set(wx, groundY, wz);
+    group.rotation.y = facingYaw;
     return group;
   }
 
   updateNightLighting(isNight) {
-    this.houseWinMat.emissiveIntensity = isNight ? 0.95 : 0.0;
-    this.towerWinMat.emissiveIntensity = isNight ? 1.1 : 0.0;
+    this.houseWinMat.emissiveIntensity = isNight ? 1.15 : 0.0;
+    this.towerWinMat.emissiveIntensity = isNight ? 1.25 : 0.0;
     this.vehicles.forEach((v) => {
       v.headlight.visible = isNight;
     });
+  }
+
+  // WARGA 3D JALAN KAKI & NONGKRONG DI KAFE
+  _spawnPedestrianIfNeeded() {
+    if (this.pedestrians.length >= 65) return;
+    const walkCells = [];
+    for (let gx = 0; gx < this.gridSize; gx++) {
+      for (let gz = 0; gz < this.gridSize; gz++) {
+        const t = this.grid[gx][gz].type;
+        if (this.isRoadTool(t) && this.grid[gx][gz].connectedToGate) {
+          walkCells.push(this.grid[gx][gz]);
+        }
+      }
+    }
+    if (walkCells.length < 3) return;
+
+    const start = walkCells[Math.floor(Math.random() * walkCells.length)];
+    const pos = this.gridToWorld(start.gx, start.gz);
+    const sideOffset = (Math.random() > 0.5 ? 1 : -1) * 1.42;
+
+    const pedGroup = new THREE.Group();
+    const shirtCols = [0xef4444, 0x3b82f6, 0xf59e0b, 0x10b981, 0xf8fafc, 0x8b5cf6];
+    const torso = new THREE.Mesh(
+      new THREE.BoxGeometry(0.24, 0.34, 0.14),
+      new THREE.MeshStandardMaterial({ color: shirtCols[Math.floor(Math.random() * shirtCols.length)] })
+    );
+    torso.position.y = 0.46;
+
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.1, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0xfdba74 })
+    );
+    head.position.y = 0.72;
+
+    const legL = new THREE.Mesh(
+      new THREE.BoxGeometry(0.09, 0.3, 0.09),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b })
+    );
+    legL.position.set(-0.06, 0.16, 0);
+    const legR = legL.clone();
+    legR.position.set(0.06, 0.16, 0);
+
+    pedGroup.add(torso, head, legL, legR);
+    const gy = this.gfx.getHeightAt(pos.x + sideOffset, pos.z);
+    pedGroup.position.set(pos.x + sideOffset, gy + 0.08, pos.z);
+    this.rootGroup.add(pedGroup);
+
+    this.pedestrians.push({
+      mesh: pedGroup,
+      legL,
+      legR,
+      gx: start.gx,
+      gz: start.gz,
+      prevGx: -1,
+      prevGz: -1,
+      sideOffset,
+      targetX: pos.x + sideOffset,
+      targetZ: pos.z,
+      phase: Math.random() * Math.PI * 2,
+      speed: 1.35 + Math.random() * 0.45
+    });
+  }
+
+  _updatePedestrians(delta) {
+    for (let i = this.pedestrians.length - 1; i >= 0; i--) {
+      const p = this.pedestrians[i];
+      const dx = p.targetX - p.mesh.position.x;
+      const dz = p.targetZ - p.mesh.position.z;
+      const dist = Math.hypot(dx, dz);
+
+      if (dist < 0.25) {
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        const nextList = [];
+        for (const [ox, oz] of dirs) {
+          const nx = p.gx + ox;
+          const nz = p.gz + oz;
+          const nc = this.getCell(nx, nz);
+          if (nc && this.isRoadTool(nc.type) && !(nx === p.prevGx && nz === p.prevGz)) {
+            nextList.push(nc);
+          }
+        }
+        if (nextList.length === 0) {
+          const back = this.getCell(p.prevGx, p.prevGz);
+          if (back && this.isRoadTool(back.type)) nextList.push(back);
+        }
+        if (nextList.length === 0) {
+          this.rootGroup.remove(p.mesh);
+          this.pedestrians.splice(i, 1);
+          continue;
+        }
+        const chosen = nextList[Math.floor(Math.random() * nextList.length)];
+        p.prevGx = p.gx;
+        p.prevGz = p.gz;
+        p.gx = chosen.gx;
+        p.gz = chosen.gz;
+        const wp = this.gridToWorld(chosen.gx, chosen.gz);
+        p.targetX = wp.x + p.sideOffset;
+        p.targetZ = wp.z + (Math.random() - 0.5) * 0.6;
+      } else {
+        const step = Math.min(dist, p.speed * delta);
+        p.mesh.position.x += (dx / dist) * step;
+        p.mesh.position.z += (dz / dist) * step;
+        const gy = this.gfx.getHeightAt(p.mesh.position.x, p.mesh.position.z);
+        p.mesh.position.y = Math.max(1.02, gy + 0.08);
+        p.mesh.lookAt(p.targetX, p.mesh.position.y, p.targetZ);
+
+        p.phase += delta * 11;
+        p.legL.rotation.x = Math.sin(p.phase) * 0.55;
+        p.legR.rotation.x = -Math.sin(p.phase) * 0.55;
+      }
+    }
   }
 
   _spawnVehicleIfNeeded() {
@@ -1217,10 +1519,10 @@ class CityRCISystem {
     let isAngkot = false;
     let isBike = false;
 
-    if (roll < 0.34) {
+    if (roll < 0.32) {
       bodyColor = 0x0284c7;
       isAngkot = true;
-    } else if (roll < 0.64) {
+    } else if (roll < 0.6) {
       bodyColor = 0x1e293b;
       isBike = true;
     } else {
@@ -1228,27 +1530,36 @@ class CityRCISystem {
       bodyColor = carCols[Math.floor(Math.random() * carCols.length)];
     }
 
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(isBike ? 0.28 : 0.62, isBike ? 0.4 : 0.48, isBike ? 0.68 : 1.15),
-      new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.32 })
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(isBike ? 0.24 : 0.64, isBike ? 0.34 : 0.34, isBike ? 0.68 : 1.24),
+      new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.3 })
     );
-    mesh.position.y = 0.24;
-    group.add(mesh);
+    body.position.y = 0.22;
+    group.add(body);
+
+    if (!isBike) {
+      const cabin = new THREE.Mesh(
+        new THREE.BoxGeometry(0.56, 0.26, isAngkot ? 0.96 : 0.66),
+        new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.15, metalness: 0.6 })
+      );
+      cabin.position.set(0, 0.48, isAngkot ? -0.05 : -0.08);
+      group.add(cabin);
+    }
 
     if (isAngkot) {
       const stripe = new THREE.Mesh(
-        new THREE.BoxGeometry(0.64, 0.14, 1.17),
+        new THREE.BoxGeometry(0.66, 0.12, 1.26),
         new THREE.MeshBasicMaterial({ color: 0xf8fafc })
       );
-      stripe.position.y = 0.26;
+      stripe.position.y = 0.24;
       group.add(stripe);
     }
 
     const headlight = new THREE.Mesh(
-      new THREE.BoxGeometry(isBike ? 0.2 : 0.48, 0.12, 0.1),
+      new THREE.BoxGeometry(isBike ? 0.18 : 0.48, 0.1, 0.08),
       new THREE.MeshBasicMaterial({ color: 0xfef9c3 })
     );
-    headlight.position.set(0, 0.22, isBike ? 0.36 : 0.6);
+    headlight.position.set(0, 0.22, isBike ? 0.35 : 0.63);
     headlight.visible = this.gfx.clockHour < 5.5 || this.gfx.clockHour > 18.5;
     group.add(headlight);
 
@@ -1264,7 +1575,7 @@ class CityRCISystem {
       prevGz: -1,
       targetX: pos.x,
       targetZ: pos.z,
-      speed: isBike ? 6.0 : 4.4
+      speed: isBike ? 5.8 : 4.2
     });
   }
 
@@ -1281,7 +1592,6 @@ class CityRCISystem {
         const candidates = [];
 
         for (const [ox, oz] of dirs) {
-          // Patuhi arah jalan 1 arah jika ada
           if (
             currCell &&
             (currCell.type === "road_1way_1" || currCell.type === "road_1way_2") &&
@@ -1320,7 +1630,7 @@ class CityRCISystem {
         v.mesh.position.x += (dx / dist) * step;
         v.mesh.position.z += (dz / dist) * step;
         const groundY = this.gfx.getHeightAt(v.mesh.position.x, v.mesh.position.z);
-        v.mesh.position.y = Math.max(1.05, groundY + 0.12);
+        v.mesh.position.y = Math.max(1.05, groundY + 0.14);
         v.mesh.lookAt(v.targetX, v.mesh.position.y, v.targetZ);
       }
     }
@@ -1329,30 +1639,40 @@ class CityRCISystem {
   stepSimulation(delta, simSpeed) {
     if (simSpeed <= 0) return;
 
-    for (let attempt = 0; attempt < 5; attempt++) {
-      if (Math.random() >= 0.35 * simSpeed) continue;
+    // Kedip lampu puncak gedung pencakar langit
+    const blinkOn = Math.sin(performance.now() * 0.006) > 0;
+    this.aviationBeacons.forEach((b) => {
+      b.visible = blinkOn;
+    });
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (Math.random() >= 0.28 * simSpeed) continue;
       const gx = Math.floor(Math.random() * this.gridSize);
       const gz = Math.floor(Math.random() * this.gridSize);
       const cell = this.grid[gx][gz];
+      const facingYaw = cell && cell.zone ? this._getRoadFacingYaw(gx, gz) : null;
 
-      if (cell && cell.zone && this._hasConnectedRoadAdjacent(gx, gz)) {
+      if (cell && cell.zone && facingYaw !== null) {
         const pos = this.gridToWorld(gx, gz);
         const y = this.gfx.getHeightAt(pos.x, pos.z);
 
         if (!cell.building) {
-          const mesh = this._createBuildingMesh(cell.zone, 1, "construction", pos.x, y, pos.z);
+          const meta = {};
+          const mesh = this._createBuildingMesh(gx, gz, cell.zone, 1, "construction", pos.x, y, pos.z, facingYaw, meta);
           this.rootGroup.add(mesh);
-          const b = { zone: cell.zone, level: 1, stage: "construction", mesh };
+          const b = { zone: cell.zone, level: 1, stage: "construction", facingYaw, mesh };
           cell.building = b;
           this.buildings.push(b);
-          this.gfx.clearVegetationNear(pos.x, pos.z, 2.3);
+          this.gfx.clearVegetationNear(pos.x, pos.z, 2.4);
           this._recalculateNetworks();
         } else if (cell.building.stage === "construction") {
           this.rootGroup.remove(cell.building.mesh);
-          const mesh = this._createBuildingMesh(cell.zone, 1, "built", pos.x, y, pos.z);
+          const meta = {};
+          const mesh = this._createBuildingMesh(gx, gz, cell.zone, 1, "built", pos.x, y, pos.z, cell.building.facingYaw, meta);
           this.rootGroup.add(mesh);
           cell.building.mesh = mesh;
           cell.building.stage = "built";
+          cell.building.isCafe = Boolean(meta.isCafe);
           if (cell.zoneMesh) {
             this.rootGroup.remove(cell.zoneMesh);
             cell.zoneMesh = null;
@@ -1363,13 +1683,27 @@ class CityRCISystem {
           cell.building.level < 3 &&
           cell.powered &&
           cell.watered &&
-          Math.random() < 0.16
+          Math.random() < 0.14
         ) {
           cell.building.level += 1;
           this.rootGroup.remove(cell.building.mesh);
-          const mesh = this._createBuildingMesh(cell.zone, cell.building.level, "built", pos.x, y, pos.z);
+          const meta = {};
+          const mesh = this._createBuildingMesh(
+            gx,
+            gz,
+            cell.zone,
+            cell.building.level,
+            "built",
+            pos.x,
+            y,
+            pos.z,
+            cell.building.facingYaw,
+            meta
+          );
           this.rootGroup.add(mesh);
           cell.building.mesh = mesh;
+          cell.building.isCafe = false;
+          cell.building.beacon = meta.beacon || null;
           this._recalculateNetworks();
         }
       }
@@ -1383,6 +1717,8 @@ class CityRCISystem {
     this.demand.I = Math.max(10, Math.min(95, 45 + r * 2 - i * 3));
 
     if (Math.random() < 0.1 * simSpeed) this._spawnVehicleIfNeeded();
+    if (Math.random() < 0.14 * simSpeed) this._spawnPedestrianIfNeeded();
     this._updateVehicles(delta * simSpeed);
+    this._updatePedestrians(delta * simSpeed);
   }
 }
