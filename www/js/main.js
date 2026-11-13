@@ -15,8 +15,12 @@
   let citySim = null;
 
   const TOOL_LABELS = {
-    road_local: "Jalan Lingkungan",
-    road_arterial: "Jalan Arteri 4 Lajur",
+    road_4lane: "Jalan Raya 4 Lajur",
+    road_2lane: "Jalan Raya 2 Lajur",
+    road_1way_1: "Jalan 1 Arah (1 Jalur)",
+    road_1way_2: "Jalan 1 Arah (2 Jalur)",
+    road_bike: "Jalur Sepeda",
+    road_pedestrian: "Trotoar Pedestrian",
     zone_r: "Zona Hijau (Hunian)",
     zone_c: "Zona Biru (Komersial)",
     zone_i: "Zona Kuning (Industri)",
@@ -28,8 +32,12 @@
 
   const SUB_MENUS = {
     tata_kota: [
-      { id: "road_local", label: "🛣️ Jalan Lingkungan (Rp 0,15M)" },
-      { id: "road_arterial", label: "🛣️ Jalan Arteri 4 Lajur (Rp 0,35M)" },
+      { id: "road_4lane", label: "🛣️ Jalan Raya 4 Lajur (Rp 0,40M)" },
+      { id: "road_2lane", label: "🛣️ Jalan Raya 2 Lajur (Rp 0,20M)" },
+      { id: "road_1way_1", label: "⬆️ 1 Arah – 1 Jalur (Rp 0,15M)" },
+      { id: "road_1way_2", label: "⏫ 1 Arah – 2 Jalur (Rp 0,28M)" },
+      { id: "road_bike", label: "🚲 Jalur Sepeda (Rp 0,10M)" },
+      { id: "road_pedestrian", label: "🚶 Jalan Trotoar Paving (Rp 0,12M)" },
       { id: "zone_r", label: "🟩 Zona Hijau: Hunian" },
       { id: "zone_c", label: "🟦 Zona Biru: Komersial" },
       { id: "zone_i", label: "🟨 Zona Kuning: Industri" },
@@ -37,7 +45,7 @@
       { id: "raise", label: "🏔️ Naikkan Gunung" },
       { id: "lower", label: "🌊 Gali Sungai" },
       { id: "flatten", label: "📐 Ratakan Tanah" },
-      { id: "tree", label: "🌲 Tanam Pinus" }
+      { id: "tree", label: "🌳 Tanam Pohon Rindang" }
     ],
     layanan: [
       { id: "pln", label: "⚡ Pembangkit PLN (Rp 4,5M)" },
@@ -60,7 +68,7 @@
     el.textContent = msg;
     el.classList.remove("hidden");
     clearTimeout(showToast._timer);
-    showToast._timer = setTimeout(() => el.classList.add("hidden"), 2600);
+    showToast._timer = setTimeout(() => el.classList.add("hidden"), 2700);
   }
 
   function spendBudget(amount) {
@@ -77,6 +85,7 @@
     const bar = document.getElementById("blueprint-bar");
     const info = document.getElementById("blueprint-info");
     const rotBtn = document.getElementById("btn-bp-rotate");
+    const curveBtn = document.getElementById("btn-bp-curve");
 
     if (!bp) {
       bar.classList.add("hidden");
@@ -85,9 +94,11 @@
 
     const name = TOOL_LABELS[bp.toolId] || bp.toolId;
     const sizeText =
-      bp.toolId.startsWith("zone_") || bp.toolId === "bulldoze"
-        ? `${bp.spanW}×${bp.spanH} (${bp.validCount} Petak)`
-        : `${bp.validCount} Petak`;
+      bp.shape === "roundabout"
+        ? `Bundaran Alun-Alun (${bp.validCount} Petak)`
+        : bp.toolId.startsWith("zone_") || bp.toolId === "bulldoze"
+          ? `${bp.spanW}×${bp.spanH} (${bp.validCount} Petak)`
+          : `${bp.validCount} Petak`;
     const costText = bp.totalCost > 0 ? ` • Rp ${bp.totalCost.toFixed(2)} M` : "";
     info.textContent = `${name}: ${sizeText}${costText}`;
 
@@ -97,24 +108,38 @@
       rotBtn.classList.add("hidden");
     }
 
+    if (citySim && citySim.isRoadTool(bp.toolId) && bp.shape === "curved") {
+      curveBtn.classList.remove("hidden");
+    } else {
+      curveBtn.classList.add("hidden");
+    }
+
     bar.classList.remove("hidden");
   }
 
-  function updateLensBanner(toolId) {
-    const banner = document.getElementById("lens-banner");
+  function updateLensAndRoadBars(toolId) {
+    const lensBanner = document.getElementById("lens-banner");
+    const roadOptsBar = document.getElementById("road-options-bar");
     if (!citySim) return;
 
     if (toolId === "pln") {
       citySim.setSmartLens("pln");
-      banner.textContent = "⚡ Lensa Listrik PLN: Biru = Teraliri Listrik • Merah = Butuh PLN";
-      banner.classList.remove("hidden");
+      lensBanner.textContent = "⚡ Lensa Listrik PLN: Biru = Teraliri Listrik • Merah = Butuh PLN";
+      lensBanner.classList.remove("hidden");
+      roadOptsBar.classList.add("hidden");
     } else if (toolId === "pdam") {
       citySim.setSmartLens("pdam");
-      banner.textContent = "💧 Lensa Air PDAM: Biru = Teraliri Air • Merah = Butuh PDAM";
-      banner.classList.remove("hidden");
+      lensBanner.textContent = "💧 Lensa Air PDAM: Biru = Teraliri Air • Merah = Butuh PDAM";
+      lensBanner.classList.remove("hidden");
+      roadOptsBar.classList.add("hidden");
+    } else if (toolId && citySim.isRoadTool(toolId)) {
+      citySim.setSmartLens(null);
+      lensBanner.classList.add("hidden");
+      roadOptsBar.classList.remove("hidden");
     } else {
       citySim.setSmartLens(null);
-      banner.classList.add("hidden");
+      lensBanner.classList.add("hidden");
+      roadOptsBar.classList.add("hidden");
     }
   }
 
@@ -126,7 +151,7 @@
     }
     if (citySim) citySim.clearBlueprint();
     updateBlueprintUI(null);
-    updateLensBanner(null);
+    updateLensAndRoadBars(null);
     document.querySelectorAll(".sub-btn").forEach((x) => x.classList.remove("active"));
   }
 
@@ -197,11 +222,11 @@
 
       clearActiveTool();
       engine.loadRegion(state.region);
-      citySim.resetCity();
+      citySim.resetCity(state.region);
       engine.updateAtmosphere(state.hour);
       updateHUD();
       resetChatWelcome();
-      showToast(`Selamat menjabat di ${state.region.name}! 2 jari cubit/geser untuk atur kamera.`);
+      showToast(`Selamat menjabat di ${state.region.name}! Akses ${state.region.highway.label} siap disambung.`);
     });
   }
 
@@ -275,8 +300,8 @@
                 const isSculpt = ["raise", "lower", "flatten", "tree"].includes(item.id);
                 engine.setGridVisible(!isSculpt);
               }
-              updateLensBanner(item.id);
-              showToast(`Alat aktif: ${item.label}. Tarik garis/kotak lalu tekan ✓ Bangun.`);
+              updateLensAndRoadBars(item.id);
+              showToast(`Alat aktif: ${item.label}. Tarik di peta lalu tekan ✓ Bangun.`);
             }
           });
           subMenu.appendChild(sb);
@@ -284,6 +309,34 @@
 
         subMenu.classList.remove("hidden");
       });
+    });
+
+    // Tombol Pilihan Bentuk Jalan (Lurus, Melengkung, Bundaran Alun-Alun)
+    document.querySelectorAll(".ropt-btn[data-shape]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".ropt-btn[data-shape]").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        if (citySim) {
+          citySim.roadShape = btn.dataset.shape;
+          citySim.clearBlueprint();
+          updateBlueprintUI(null);
+        }
+        const label =
+          btn.dataset.shape === "roundabout"
+            ? "Mode Bundaran Alun-Alun: Ketuk/tarik radius lingkaran lalu ✓ Bangun."
+            : btn.dataset.shape === "curved"
+              ? "Mode Jalan Melengkung: Tarik dari titik awal ke tujuan."
+              : "Mode Jalan Lurus Presisi aktif.";
+        showToast(label);
+      });
+    });
+
+    // Saklar Pohon Trotoar ON/OFF
+    document.getElementById("btn-toggle-road-trees").addEventListener("click", (e) => {
+      if (!citySim) return;
+      citySim.roadTreesEnabled = !citySim.roadTreesEnabled;
+      e.currentTarget.classList.toggle("active", citySim.roadTreesEnabled);
+      e.currentTarget.textContent = citySim.roadTreesEnabled ? "🌳 Pohon Trotoar: ON" : "🌳 Pohon Trotoar: OFF";
     });
 
     // Tombol Konfirmasi Cetak Biru Presisi
@@ -294,6 +347,12 @@
         updateHUD();
         showToast("Konstruksi selesai dibangun!");
       }
+    });
+
+    document.getElementById("btn-bp-curve").addEventListener("click", () => {
+      if (!citySim) return;
+      const bp = citySim.toggleCurveDirection();
+      updateBlueprintUI(bp);
     });
 
     document.getElementById("btn-bp-rotate").addEventListener("click", () => {
@@ -307,7 +366,6 @@
       updateBlueprintUI(null);
     });
 
-    // Tombol Toggle Sudut Kamera (3D Sinematik <-> Top-Down Presisi)
     document.getElementById("btn-cam-view").addEventListener("click", (e) => {
       if (!engine) return;
       const isTop = engine.toggleCameraAngle();
@@ -332,7 +390,7 @@
     box.innerHTML = "";
     appendChatMsg(
       "ai",
-      `Halo Kepala Daerah! Selamat datang di <strong>${state.region.name}</strong>.<br><br>• <strong>Peta Luas 6.400 Kavling:</strong> Coba <em>zoom out</em> dengan 2 jari untuk melihat barisan pegunungan & aliran sungai asli daerah ini.<br>• <strong>Penempatan Presisi:</strong> Tarik garis lurus untuk jalan raya atau tarik kotak persegi untuk Zona RCI, lalu ketuk <strong>✓ Bangun</strong>.`
+      `Halo Kepala Daerah! Selamat datang di <strong>${state.region.name}</strong>.<br><br>• <strong>Akses Tol Realistis:</strong> <em>${state.region.highway.label}</em> sudah tersedia di daratan kering dan siap disambung.<br>• <strong>6 Jenis Jalan + Bundaran:</strong> Pilih jalan raya 4 lajur, 2 lajur, 1 arah, jalur sepeda, atau trotoar paving dengan mode <strong>Lurus</strong>, <strong>Melengkung</strong>, maupun <strong>Bundaran Alun-Alun</strong>.`
     );
   }
 
@@ -350,19 +408,19 @@
     const reg = state.region;
     const s = citySim ? citySim.stats : null;
 
-    if (q.includes("kamera") || q.includes("2 jari")) {
-      return `<strong>Kontrol Kamera Pro:</strong><br>• <strong>1 Jari Geser</strong> (saat alat mati): Menggeser peta mulus.<br>• <strong>2 Jari Cubit:</strong> Zoom dekat ke atap rumah hingga zoom jauh melihat puncak gunung.<br>• <strong>2 Jari Putar:</strong> Memutar sudut pandang 360°.<br>• <strong>2 Jari Geser Naik/Turun</strong> (atau ketuk <strong>📐 Sudut</strong> di kanan): Mengubah kemiringan kamera dari sudut tegak atas ala <em>TheoTown</em> ke sudut 3D rendah.`;
+    if (q.includes("kamera") || q.includes("ground-lock")) {
+      return `<strong>Kontrol Kamera Raycast Ground-Lock:</strong><br>• <strong>1 Jari Geser</strong> (saat alat mati): Titik tanah tepat di bawah ujung jarimu terkunci penuh—digeser maju, mundur, atau setelah diputar 360° arahnya selalu pas.<br>• <strong>2 Jari Cubit:</strong> Zoom dekat sampai atap rumah atau zoom jauh melihat pegunungan.<br>• <strong>2 Jari Putar:</strong> Putar sudut pandang 360°.<br>• <strong>2 Jari Geser Naik/Turun</strong> (atau ketuk <strong>📐 Sudut</strong>): Ubah kemiringan antara sudut atas <em>TheoTown</em> dan 3D rendah.`;
     }
 
-    if (q.includes("presisi") || q.includes("naruh jalan") || q.includes("tarik jalan")) {
-      return `<strong>Cara Membangun Presisi (Anti-Melenceng):</strong><br>1. Pilih alat jalan atau zona di <strong>🛣️ Tata Kota</strong>.<br>2. Sentuh dan geser jari untuk membentuk garis lurus (jalan) atau kotak persegi (zona RCI).<br>3. Anda bebas menggeser kamera dengan 2 jari untuk mengecek pratinjau biru sebelum menekan <strong>✓ Bangun</strong>.`;
+    if (q.includes("bundaran") || q.includes("melengkung") || q.includes("alun")) {
+      return `<strong>Cara Buat Jalan Melengkung &amp; Bundaran Alun-Alun:</strong><br>1. Pilih salah satu jenis jalan di <strong>🛣️ Tata Kota</strong>.<br>2. Di bilah kiri atas muncul opsi <strong>📏 Lurus</strong>, <strong>〰️ Melengkung</strong>, dan <strong>⭕ Bundaran Alun-Alun</strong>.<br>3. Pada mode <strong>Bundaran Alun-Alun</strong>, sentuh titik pusat alun-alun lalu geser untuk mengatur diameter lingkarannya (otomatis terisi taman rumput, pohon, dan Tugu Monumen di tengah!).`;
     }
 
     if (s && (q.includes("progress") || q.includes("cek"))) {
-      return `<strong>Laporan Kota ${reg.name}:</strong><br>• <strong>Populasi:</strong> ${state.population.toLocaleString("id-ID")} jiwa (Kepuasan ${state.happiness}%)<br>• <strong>Jalan Raya:</strong> ${s.roads} petak | <strong>Utilitas:</strong> ${s.plnCount} PLN, ${s.pdamCount} PDAM<br>• <strong>Tingkat Bangunan (R/C/I):</strong> ${s.rBuildings} / ${s.cBuildings} / ${s.iBuildings}`;
+      return `<strong>Laporan Kota ${reg.name}:</strong><br>• <strong>Populasi:</strong> ${state.population.toLocaleString("id-ID")} jiwa (Kepuasan ${state.happiness}%)<br>• <strong>Jaringan Jalan:</strong> ${s.roads} petak | <strong>Utilitas:</strong> ${s.plnCount} PLN, ${s.pdamCount} PDAM<br>• <strong>Tingkat Bangunan (R/C/I):</strong> ${s.rBuildings} / ${s.cBuildings} / ${s.iBuildings}`;
     }
 
-    return `Saya memantau <strong>${reg.name}</strong> secara langsung. Gunakan garis grid bantu untuk menyambungkan jalan arteri dari Gerbang Tol Nusantara, warnai blok zona RCI, serta pasang PLN & PDAM agar gedung bertingkat tumbuh otomatis.`;
+    return `Saya memantau <strong>${reg.name}</strong> secara langsung. Sambungkan jalan raya dari <strong>${reg.highway.label}</strong> menuju lembah kota, aktifkan <strong>🌳 Pohon Trotoar</strong>, lalu bangun zona RCI beserta PLN &amp; PDAM.`;
   }
 
   function initChat() {
