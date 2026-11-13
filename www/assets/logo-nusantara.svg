@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="55%" stop-color="#091326" />
+      <stop offset="100%" stop-color="#040812" />
+    </linearGradient>
+    <linearGradient id="indoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="50%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+    <linearGradient id="goldAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fde047" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+    <filter id="softGlow" x="-15%" y="-15%" width="130%" height="130%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Latar Ikon Aplikasi -->
+  <rect x="12" y="12" width="488" height="488" rx="108" fill="url(#bgGrad)" stroke="#1e293b" stroke-width="6" />
+  <rect x="26" y="26" width="460" height="460" rx="96" fill="none" stroke="rgba(56,189,248,0.22)" stroke-width="2" />
+
+  <!-- Garis Koordinat Garis Khatulistiwa Halus -->
+  <line x1="44" y1="215" x2="468" y2="215" stroke="rgba(56,189,248,0.18)" stroke-width="1.5" stroke-dasharray="6 6" />
+
+  <!-- PETA VEKTOR KEPULAUAN INDONESIA -->
+  <g fill="url(#indoGrad)" stroke="#e0f2fe" stroke-width="1.8" stroke-linejoin="round" filter="url(#softGlow)">
+    <!-- Sumatera -->
+    <path d="M52,148 L66,143 L86,164 L106,188 L122,212 L131,232 L119,241 L101,226 L82,202 L61,175 L49,157 Z" />
+    <!-- Bangka & Belitung -->
+    <path d="M135,216 L144,216 L145,224 L136,224 Z M150,223 L157,223 L157,229 L150,229 Z" />
+    <!-- Jawa & Madura -->
+    <path d="M134,254 L162,257 L194,262 L219,264 L222,272 L195,274 L164,270 L133,264 Z" />
+    <path d="M207,256 L221,257 L221,261 L207,260 Z" />
+    <!-- Kalimantan -->
+    <path d="M174,174 L196,158 L222,155 L242,168 L248,188 L238,214 L216,225 L188,223 L172,207 L169,188 Z" />
+    <!-- Sulawesi -->
+    <path d="M266,172 L292,167 L308,169 L309,176 L284,180 L282,193 L301,196 L303,204 L286,207 L292,224 L283,228 L274,212 L267,227 L258,224 L261,202 L264,186 Z" />
+    <!-- Bali & Nusa Tenggara -->
+    <path d="M227,268 L237,268 L237,274 L227,274 Z M242,269 L254,268 L254,275 L242,275 Z M259,270 L277,269 L277,276 L259,276 Z M283,271 L308,269 L310,276 L284,278 Z M272,282 L286,281 L286,287 L272,287 Z M314,279 L336,271 L339,278 L316,286 Z" />
+    <!-- Maluku (Halmahera, Seram, Buru) -->
+    <path d="M326,168 L338,164 L341,176 L335,186 L327,183 Z M322,208 L333,207 L333,214 L322,215 Z M338,207 L358,206 L359,214 L338,215 Z" />
+    <!-- Papua -->
+    <path d="M376,193 L398,191 L408,201 L424,204 L456,211 L456,252 L432,248 L416,234 L398,231 L391,215 L374,209 Z" />
+  </g>
+
+  <!-- Pembatas Emas & Teks Judul -->
+  <rect x="96" y="314" width="320" height="3" rx="1.5" fill="url(#goldAccent)" opacity="0.85" />
+  <text x="256" y="356" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-weight="900" font-size="34" letter-spacing="1.5">CITY BUILDING</text>
+  <text x="256" y="396" text-anchor="middle" fill="#38bdf8" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-weight="900" font-size="30" letter-spacing="4">: NUSANTARA :</text>
+  <text x="256" y="434" text-anchor="middle" fill="#94a3b8" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-weight="700" font-size="14" letter-spacing="3.5">RIZZI GAMES</text>
+</svg>
