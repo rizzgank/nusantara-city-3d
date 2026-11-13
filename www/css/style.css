@@ -13,6 +13,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* PASTIKAN SEMUA TOMBOL LANGSUNG MERESPONS SENTUHAN DI iOS */
+button, select, input {
+  touch-action: manipulation;
+}
+
 input, textarea, select, .msg-bubble {
   -webkit-touch-callout: default !important;
   -webkit-user-select: text !important;
@@ -45,7 +50,7 @@ html, body {
 }
 
 /* =========================================================
-   1. INTRO SINEMATIK SIMPEL & ELEGAN (Zoom In/Out + Fade)
+   1. INTRO SINEMATIK SIMPEL & ELEGAN
    ========================================================= */
 .intro-splash {
   position: fixed;
@@ -56,7 +61,7 @@ html, body {
   align-items: center;
   justify-content: center;
   opacity: 1;
-  transition: opacity 0.6s ease;
+  transition: opacity 0.55s ease;
 }
 
 .intro-splash.fade-out {
@@ -70,8 +75,8 @@ html, body {
   padding: 24px;
   opacity: 0;
   transform: scale(0.92);
-  transition: opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
-              transform 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 1.05s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
 
@@ -100,7 +105,6 @@ html, body {
   color: #f8fafc;
 }
 
-/* Logo Rizzi Games yang simpel & modern */
 .rg-simple-mark {
   display: inline-flex;
   align-items: center;
@@ -140,7 +144,7 @@ html, body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  padding: max(14px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
   background: linear-gradient(180deg, rgba(7, 10, 16, 0.78) 0%, rgba(7, 10, 16, 0.25) 50%, rgba(7, 10, 16, 0.86) 100%);
 }
 
@@ -154,25 +158,36 @@ html, body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 10px 20px;
-  border-radius: 20px;
-  background: rgba(15, 23, 42, 0.82);
+  padding: 10px 18px;
+  border-radius: 22px;
+  background: rgba(15, 23, 42, 0.86);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(56, 189, 248, 0.35);
+  border: 1px solid rgba(56, 189, 248, 0.4);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
 }
 
-.indo-map-svg {
+.app-logo-img {
+  width: 68px;
+  height: 68px;
+  border-radius: 16px;
   flex-shrink: 0;
-  filter: drop-shadow(0 3px 10px rgba(56, 189, 248, 0.35));
+  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.35);
 }
 
 .app-logo-text-wrap {
   text-align: left;
 }
 
+.app-logo-kicker {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #38bdf8;
+  margin-bottom: 2px;
+}
+
 .app-logo-title {
-  font-size: clamp(18px, 3vw, 26px);
+  font-size: clamp(18px, 3vw, 25px);
   font-weight: 900;
   letter-spacing: 0.3px;
   color: #ffffff;
@@ -181,9 +196,9 @@ html, body {
 
 .app-logo-studio {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  color: #94a3b8;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #fde047;
   margin-top: 3px;
 }
 
@@ -350,6 +365,7 @@ html, body {
 .region-list {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -391,7 +407,7 @@ html, body {
   position: relative;
   width: 100%;
   flex: 1;
-  min-height: 150px;
+  min-height: 140px;
   border-radius: 12px;
   overflow: hidden;
   background: #070d19;
@@ -419,14 +435,21 @@ html, body {
 .start-city-btn {
   width: 100%;
   margin-top: 8px;
-  padding: 11px;
+  padding: 12px;
   border-radius: 12px;
   border: none;
   background: linear-gradient(135deg, #0284c7, #2563eb);
   color: #ffffff;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 900;
   cursor: pointer;
+  position: relative;
+  z-index: 5;
+}
+
+.start-city-btn:active {
+  transform: scale(0.97);
+  opacity: 0.9;
 }
 
 /* 4. HUD DALAM PERMAINAN */
